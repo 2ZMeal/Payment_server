@@ -9,6 +9,7 @@ spring:
     password: 1234
     driver-class-name: org.postgresql.Driver
 
+
 eureka:
   client:
     enabled: false

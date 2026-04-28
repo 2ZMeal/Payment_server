@@ -14,9 +14,10 @@ import org.ezmeal.payment.domain.model.enums.PgProvider;
 @Table(name = "p_payment")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
-@Builder
+
 public class Payment extends BaseEntity {
+
+
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -52,6 +53,37 @@ public class Payment extends BaseEntity {
 
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+
+    @Builder
+    public Payment(UUID orderId, UUID userId, PaymentStatus status, Integer price,
+                   Integer totalPrice, PgProvider pgProvider, PaymentMethod paymentMethod) {
+
+        // 여기에 검증 로직 추가!
+        validatePgAndMethod(pgProvider, paymentMethod);
+
+        this.orderId = orderId;
+        this.userId = userId;
+        this.status = status;
+        this.price = price;
+        this.totalPrice = totalPrice;
+        this.pgProvider = pgProvider;
+        this.paymentMethod = paymentMethod;
+    }
+    /**
+     * PG사와 결제 수단 조합 검증
+     */
+    private void validatePgAndMethod(PgProvider provider, PaymentMethod method) {
+        if (provider == PgProvider.TOSS && method == PaymentMethod.KAKAO) {
+            throw new IllegalArgumentException("토스 결제 대행사에서 카카오페이 수단을 사용할 수 없습니다.");
+        }
+        if (provider == PgProvider.KAKAO && method == PaymentMethod.TOSS) {
+            throw new IllegalArgumentException("카카오 결제 대행사에서 토스페이 수단을 사용할 수 없습니다.");
+        }
+    }
+
+
+
+
 
     // 결제 완료 비즈니스 로직
     public void complete(String pgTransactionId) {

@@ -53,6 +53,7 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentResponseDto approvePayment(String paymentKey, String orderId, Integer amount) {
         // TODO: Infrastructure 레이어의 Toss Client를 호출하여 PG 승인 진행
         // TODO: 승인 결과에 따라 결제 상태 업데이트 및 로그 저장
-        return null;
+
+        throw new UnsupportedOperationException("approvePayment is not yet implemented");
     }
 }
