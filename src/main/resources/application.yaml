@@ -12,3 +12,10 @@ spring:
       retry:
         max-attempts: 3
         initial-interval: 1000
+
+
+
+  payment:
+    toss:
+      secret-key: test_ck_ex6BJGQOVDKaLOgRQWZB3W4w2zNb
+      url: https://api.tosspayments.com/v1/payments

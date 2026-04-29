@@ -20,6 +20,7 @@ public class PaymentResponseDto {
     private PaymentStatus status;
     private Integer price;
     private String pgTransactionId;
+    private String paymentKey;
     private LocalDateTime paidAt;
     private LocalDateTime createdAt;
 
@@ -31,6 +32,7 @@ public class PaymentResponseDto {
                 .status(payment.getStatus())
                 .price(payment.getPrice())
                 .pgTransactionId(payment.getPgTransactionId())
+                .paymentKey(payment.getPaymentKey())
                 .paidAt(payment.getPaidAt())
                 .createdAt(payment.getCreatedAt()) // BaseEntity에서 물려받은 필드
                 .build();

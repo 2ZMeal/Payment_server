@@ -1,12 +1,15 @@
 package org.ezmeal.payment.application.service;
 
 import com.ezmeal.common.exception.CustomException;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
+import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
+import org.ezmeal.payment.application.dto.response.TossConfirmResponse;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.ezmeal.payment.domain.model.Payment;
 import org.ezmeal.payment.domain.model.PaymentLog;
@@ -14,8 +17,11 @@ import org.ezmeal.payment.domain.model.enums.LogType;
 import org.ezmeal.payment.domain.model.enums.PaymentStatus;
 import org.ezmeal.payment.domain.repository.PaymentLogRepository;
 import org.ezmeal.payment.domain.repository.PaymentRepository;
+import org.ezmeal.payment.infrastructure.client.TossPaymentClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +29,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final PaymentLogRepository paymentLogRepository;
+    private final TossPaymentClient tossPaymentClient;
+
+
 
     @Override
     @Transactional
@@ -88,16 +97,48 @@ public class PaymentServiceImpl implements PaymentService {
 
 
 
-
-
-    @Override
     @Transactional
-    public PaymentResponseDto approvePayment(String paymentKey, String orderId, Integer amount) {
+    public PaymentResponseDto approvePayment(String paymentKey, UUID orderId, Integer amount) {
         // TODO: Infrastructure 레이어의 Toss Client를 호출하여 PG 승인 진행
         // TODO: 승인 결과에 따라 결제 상태 업데이트 및 로그 저장
 
-        throw new UnsupportedOperationException("approvePayment is not yet implemented");
+        // 1. DB 조회 및 검증
+        Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+        if (!payment.getTotalPrice().equals(amount)) {
+            throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
+        }
+
+        try {
+            // 2. 토스 API 호출을 위한 인증 헤더 생성 (SecretKey 뒤에 콜론(:)을 붙여 Base64 인코딩)
+            String auth = Base64.getEncoder().encodeToString((secretKey + ":").getBytes());
+
+            // 3. 진짜 승인 요청
+            TossConfirmResponse response = tossPaymentClient.confirmPayment("Basic " + auth,
+                    new TossConfirmRequest(paymentKey, orderId, amount));
+
+            // 4. 성공 시 상태 업데이트 및 로그 저장
+            payment.updateStatus(PaymentStatus.COMPLETED, response.getPaymentKey());
+
+            paymentLogRepository.save(PaymentLog.builder()
+                    .payment(payment)
+                    .logType(LogType.APPROVE)
+                    .status(PaymentStatus.COMPLETED)
+                    .build());
+
+            return PaymentResponseDto.from(payment);
+
+        } catch (Exception e) {
+            // 5. 실패 시 처리
+            payment.updateStatus(PaymentStatus.FAILED, null);
+            throw new CustomException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
+        }
+
     }
+
+    @Value("${payment.toss.secret-key}")
+    private String secretKey;
 
 
 
