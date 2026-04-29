@@ -11,7 +11,7 @@ public enum PaymentMethod {
 
     CARD("카드 결제", PgProvider.CARD),
 
-    TOSS("토스 계좌이체", PgProvider.TOSS),
+    TOSS("토스페이", PgProvider.TOSS),
 
     KAKAO("카카오페이",PgProvider.KAKAO);
 
