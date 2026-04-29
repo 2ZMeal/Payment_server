@@ -40,7 +40,7 @@ public class PaymentController {
                 confirmRequestDto.getOrderId(),
                 confirmRequestDto.getAmount()
         );
-        return CommonApiResponse.success("결제가 최종 승인되었습니다.", response);
+        return CommonApiResponse.success("결제가 최종 승인되었습니다!.", response);
     }
 
     /**
