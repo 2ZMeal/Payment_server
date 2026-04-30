@@ -33,12 +33,13 @@ ext {
 dependencies {
 
     implementation 'org.springframework.cloud:spring-cloud-starter-config'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     // 인프라
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     //  공통모듈
-    implementation 'com.ezmeal:common:0.0.3'
+    implementation 'com.ezmeal:common:0.0.4'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
