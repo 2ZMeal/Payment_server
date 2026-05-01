@@ -19,7 +19,6 @@ import org.ezmeal.payment.domain.repository.PaymentLogRepository;
 import org.ezmeal.payment.domain.repository.PaymentRepository;
 import org.ezmeal.payment.infrastructure.client.TossPaymentClient;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +31,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentLogRepository paymentLogRepository;
     private final TossPaymentClient tossPaymentClient;
 
-
+    @Value("${payment.toss.secret-key}")
+    private String secretKey;
 
     @Override
     @Transactional
@@ -64,6 +64,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         return PaymentResponseDto.from(savedPayment);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -127,7 +128,8 @@ public class PaymentServiceImpl implements PaymentService {
 
             // [검증 5] 최종 금액 대조 (토스 응답 실제 결제 금액 vs DB 저장 금액)
             // 🚩 실제 돈이 얼마 나갔는지 토스가 알려준 값(totalAmount)까지 확인해야 끝입니다.
-            if (!payment.getPrice().equals(response.getTotalAmount())) {
+            if (response.getTotalAmount() == null
+                    || payment.getPrice().longValue() != response.getTotalAmount()) {
                 throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
             }
 
@@ -145,6 +147,8 @@ public class PaymentServiceImpl implements PaymentService {
 
             return PaymentResponseDto.from(payment);
 
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
             // 5. 실패 시 처리
             payment.updateStatus(PaymentStatus.FAILED, request.getPaymentKey());
@@ -159,9 +163,6 @@ public class PaymentServiceImpl implements PaymentService {
             throw new CustomException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
         }
     }
-
-    @Value("${payment.toss.secret-key}")
-    private String secretKey;
 
 
 

@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZMEAL Toss Success</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      color: #191f28;
+      background: #f5f7fb;
+    }
+
+    main {
+      width: min(720px, calc(100% - 32px));
+      margin: 32px auto;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 18px;
+      font-size: 26px;
+    }
+
+    dl {
+      display: grid;
+      grid-template-columns: 120px 1fr;
+      gap: 10px;
+      margin: 0 0 18px;
+      word-break: break-word;
+    }
+
+    dt {
+      color: #4e5968;
+      font-weight: 700;
+    }
+
+    dd {
+      margin: 0;
+    }
+
+    button,
+    a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 14px;
+      text-decoration: none;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button {
+      color: #fff;
+      background: #0064ff;
+    }
+
+    a {
+      color: #191f28;
+      background: #e9eef7;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    pre {
+      overflow: auto;
+      min-height: 80px;
+      margin: 18px 0 0;
+      border-radius: 8px;
+      padding: 14px;
+      color: #191f28;
+      background: #f2f4f8;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>결제 인증 성공</h1>
+  <dl>
+    <dt>paymentKey</dt>
+    <dd id="paymentKey"></dd>
+    <dt>orderId</dt>
+    <dd id="orderId"></dd>
+    <dt>amount</dt>
+    <dd id="amount"></dd>
+    <dt>userId</dt>
+    <dd id="userId"></dd>
+  </dl>
+  <div class="actions">
+    <button type="button" id="confirmButton">백엔드 승인</button>
+    <a href="/toss-test.html">새 결제</a>
+  </div>
+  <pre id="result"></pre>
+</main>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const data = {
+    paymentKey: params.get("paymentKey"),
+    orderId: params.get("orderId"),
+    amount: Number(params.get("amount")),
+    userId: params.get("userId") || localStorage.getItem("ezmealUserId")
+  };
+
+  for (const [key, value] of Object.entries(data)) {
+    const target = document.getElementById(key);
+    if (target) {
+      target.textContent = value ?? "";
+    }
+  }
+
+  function writeResult(value) {
+    document.getElementById("result").textContent =
+      typeof value === "string" ? value : JSON.stringify(value, null, 2);
+  }
+
+  async function confirmPayment() {
+    document.getElementById("confirmButton").disabled = true;
+    writeResult("승인 요청 중입니다.");
+
+    try {
+      const response = await fetch("/api/v1/payments/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Id": data.userId
+        },
+        body: JSON.stringify({
+          paymentKey: data.paymentKey,
+          orderId: data.orderId,
+          amount: data.amount
+        })
+      });
+      const text = await response.text();
+      try {
+        writeResult(JSON.parse(text));
+      } catch {
+        writeResult(text);
+      }
+    } catch (error) {
+      writeResult(error.message || String(error));
+    } finally {
+      document.getElementById("confirmButton").disabled = false;
+    }
+  }
+
+  document.getElementById("confirmButton").addEventListener("click", confirmPayment);
+  writeResult("승인을 실행하세요.");
+</script>
+</body>
+</html>

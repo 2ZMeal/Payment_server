@@ -1,5 +1,6 @@
 package org.ezmeal.payment.presentation.controller;
 
+import com.ezmeal.common.exception.CustomException;
 import com.ezmeal.common.response.CommonApiResponse;
 import java.util.List;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
 import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.service.PaymentService;
+import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -62,16 +64,16 @@ public class PaymentController {
      * 3. 결제 단건 조회 (GET /api/v1/payments/{payment_id})
      */
     @GetMapping("/{payment_id}")
-    public CommonApiResponse<PaymentResponseDto> getPayment(@PathVariable("payment_id") UUID paymentId) {
+    public CommonApiResponse<PaymentResponseDto> getPayment(
+            @PathVariable("payment_id") UUID paymentId,
+            @RequestHeader(value = "X-User-Id") String userIdHeader
+    ) {
+        UUID currentUserId = UUID.fromString(userIdHeader);
         PaymentResponseDto response = paymentService.getPaymentDetail(paymentId);
 
-        /* [주석 처리: 권한 세분화]
-           - 현재 로그인한 유저가 이 결제의 주인인지 확인하는 로직
-           - 또는 관리자/업체 권한인지 확인하는 로직
-           if (!response.getUserId().equals(currentUserId)) {
-               throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
-           }
-        */
+        if (!response.getUserId().equals(currentUserId)) {
+            throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
+        }
 
         return CommonApiResponse.success(response);
     }
