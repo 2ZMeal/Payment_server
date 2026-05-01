@@ -1,15 +1,22 @@
 package org.ezmeal.payment.presentation.controller;
 
+import com.ezmeal.common.exception.CustomException;
 import com.ezmeal.common.response.CommonApiResponse;
+import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.ezmeal.payment.application.dto.request.PaymentConfirmRequestDto;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
+import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.service.PaymentService;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.ezmeal.payment.domain.exception.PaymentErrorCode;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -23,40 +30,50 @@ public class PaymentController {
      * 주문 진입 시 결제 데이터를 READY 상태로 생성합니다.
      */
     @PostMapping
-    public CommonApiResponse<PaymentResponseDto> createPayment(@RequestBody PaymentRequestDto requestDto) {
-        // TODO: 유저 인증 정보에서 userId를 추출하여 DTO에 세팅하는 로직 필요
-        PaymentResponseDto response = paymentService.createPayment(requestDto);
+    public CommonApiResponse<PaymentResponseDto> createPayment(
+            @RequestBody PaymentRequestDto requestDto,
+            @RequestHeader(value = "X-User-Id") String userIdHeader // 🚩 게이트웨이가 인증 후 넘겨준 헤더
+    ) {
+        // 1. 헤더 정보를 UUID로 변환
+        UUID authenticatedUserId = UUID.fromString(userIdHeader);
+
+        // 2. 서비스 호출 시 인증된 유저 ID를 별도로 전달
+        PaymentResponseDto response = paymentService.createPayment(requestDto, authenticatedUserId);
+
         return CommonApiResponse.success("결제 요청이 성공적으로 생성되었습니다.", response);
     }
+
 
     /**
      * 2. 결제 승인 처리 (POST /api/v1/payments/confirm)
      * PG사(토스 등) 인증 완료 후 클라이언트가 전달한 정보로 최종 승인을 진행합니다.
      */
     @PostMapping("/confirm")
-    public CommonApiResponse<PaymentResponseDto> confirmPayment(@RequestBody PaymentConfirmRequestDto confirmRequestDto) {
-        PaymentResponseDto response = paymentService.approvePayment(
-                confirmRequestDto.getPaymentKey(),
-                confirmRequestDto.getOrderId(),
-                confirmRequestDto.getAmount()
-        );
-        return CommonApiResponse.success("결제가 최종 승인되었습니다!.", response);
+    public CommonApiResponse<PaymentResponseDto> confirmPayment(
+            @RequestBody TossConfirmRequest requestDto,
+            @RequestHeader(value = "X-User-Id") String userIdHeader // 🚩 게이트웨이가 넘겨준 헤더에서 가져옴
+    ) {
+        // 헤더로 넘어온 String을 UUID로 변환하여 서비스에 전달
+        UUID currentUserId = UUID.fromString(userIdHeader);
+
+        PaymentResponseDto response = paymentService.approvePayment(requestDto, currentUserId);
+        return CommonApiResponse.success("결제 승인 성공", response);
     }
 
     /**
      * 3. 결제 단건 조회 (GET /api/v1/payments/{payment_id})
      */
     @GetMapping("/{payment_id}")
-    public CommonApiResponse<PaymentResponseDto> getPayment(@PathVariable("payment_id") UUID paymentId) {
+    public CommonApiResponse<PaymentResponseDto> getPayment(
+            @PathVariable("payment_id") UUID paymentId,
+            @RequestHeader(value = "X-User-Id") String userIdHeader
+    ) {
+        UUID currentUserId = UUID.fromString(userIdHeader);
         PaymentResponseDto response = paymentService.getPaymentDetail(paymentId);
 
-        /* [주석 처리: 권한 세분화]
-           - 현재 로그인한 유저가 이 결제의 주인인지 확인하는 로직
-           - 또는 관리자/업체 권한인지 확인하는 로직
-           if (!response.getUserId().equals(currentUserId)) {
-               throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
-           }
-        */
+        if (!response.getUserId().equals(currentUserId)) {
+            throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
+        }
 
         return CommonApiResponse.success(response);
     }

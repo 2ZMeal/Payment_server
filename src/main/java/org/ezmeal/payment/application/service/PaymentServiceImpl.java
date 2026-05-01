@@ -31,24 +31,17 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentLogRepository paymentLogRepository;
     private final TossPaymentClient tossPaymentClient;
 
-
+    @Value("${payment.toss.secret-key}")
+    private String secretKey;
 
     @Override
     @Transactional
-
-    public PaymentResponseDto createPayment(PaymentRequestDto requestDto) {
-
-        /*
-        // [추가] 중복 결제 요청 검증 컨트롤러 만들고 수정해보기
-        paymentRepository.findByOrderId(requestDto.getOrderId()).ifPresent(p -> {
-            throw new CustomException(PaymentErrorCode.ALREADY_PROCESSED_PAYMENT);
-        });*/
-
+    public PaymentResponseDto createPayment(PaymentRequestDto requestDto,  UUID authenticatedUserId) {
 
         // 1. 결제 엔티티 생성
         Payment payment = Payment.builder()
                 .orderId(requestDto.getOrderId())
-                .userId(requestDto.getUserId())
+                .userId(authenticatedUserId) // 컨트롤러가 헤더에서 ID를 여기에 세팅
                 .status(PaymentStatus.READY)
                 .price(requestDto.getPrice())
                 .totalPrice(requestDto.getTotalPrice())
@@ -71,6 +64,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         return PaymentResponseDto.from(savedPayment);
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -96,49 +90,79 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
 
-
+    @Override
     @Transactional
-    public PaymentResponseDto approvePayment(String paymentKey, UUID orderId, Integer amount) {
-        // TODO: Infrastructure 레이어의 Toss Client를 호출하여 PG 승인 진행
-        // TODO: 승인 결과에 따라 결제 상태 업데이트 및 로그 저장
-
-        // 1. DB 조회 및 검증
-        Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId)
+    public PaymentResponseDto approvePayment(TossConfirmRequest request, UUID currentUserId) {
+        // 1. DB 조회
+        Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(request.getOrderId())
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-        if (!payment.getTotalPrice().equals(amount)) {
+        // [검증 1] 중복 승인 방지 (이미 완료/실패된 건인지 확인)
+        if (payment.getStatus() != PaymentStatus.READY) {
+            throw new CustomException(PaymentErrorCode.ALREADY_PROCESSED_PAYMENT);
+        }
+
+        // [검증 2] 보안: 결제 요청자와 현재 로그인 유저가 일치하는지 확인
+        if (!payment.getUserId().equals(currentUserId)) {
+            throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
+        }
+
+        // [검증 3] 금액 검증 (DB 저장 금액 vs 클라이언트 요청 금액)
+        //  여기서 요청 금액(request.getAmount())이 DB랑 다르면 바로 컷
+        if (!payment.getPrice().equals(request.getAmount())) {
             throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
         }
 
         try {
-            // 2. 토스 API 호출을 위한 인증 헤더 생성 (SecretKey 뒤에 콜론(:)을 붙여 Base64 인코딩)
+            // 2. 토스 API 인증 헤더 생성
             String auth = Base64.getEncoder().encodeToString((secretKey + ":").getBytes());
 
-            // 3. 진짜 승인 요청
-            TossConfirmResponse response = tossPaymentClient.confirmPayment("Basic " + auth,
-                    new TossConfirmRequest(paymentKey, orderId, amount));
+            // 3. PG사 승인 요청
+            TossConfirmResponse response = tossPaymentClient.confirmPayment("Basic " + auth, request);
 
-            // 4. 성공 시 상태 업데이트 및 로그 저장
+            // [검증 4] paymentKey 대조 (토스 응답 키 vs 요청 키)
+            // 🚩 요청한 키와 응답받은 키가 다르면 데이터 변조로 간주합니다.
+            if (!response.getPaymentKey().equals(request.getPaymentKey())) {
+                throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_KEY);
+            }
+
+            // [검증 5] 최종 금액 대조 (토스 응답 실제 결제 금액 vs DB 저장 금액)
+            // 🚩 실제 돈이 얼마 나갔는지 토스가 알려준 값(totalAmount)까지 확인해야 끝입니다.
+            if (response.getTotalAmount() == null
+                    || payment.getPrice().longValue() != response.getTotalAmount()) {
+                throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
+            }
+
+            // 4. 모든 검증 통과 시 상태 업데이트 (paymentKey 저장)
             payment.updateStatus(PaymentStatus.COMPLETED, response.getPaymentKey());
 
+            // 성공 로그 기록
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.COMPLETED)
+                    .requestData(request.toString())
+                    .responseData(response.toString())
                     .build());
 
             return PaymentResponseDto.from(payment);
 
+        } catch (CustomException e) {
+            throw e;
         } catch (Exception e) {
             // 5. 실패 시 처리
-            payment.updateStatus(PaymentStatus.FAILED, null);
+            payment.updateStatus(PaymentStatus.FAILED, request.getPaymentKey());
+
+            paymentLogRepository.save(PaymentLog.builder()
+                    .payment(payment)
+                    .logType(LogType.APPROVE)
+                    .status(PaymentStatus.FAILED)
+                    .requestData(e.getMessage())
+                    .build());
+
             throw new CustomException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
         }
-
     }
-
-    @Value("${payment.toss.secret-key}")
-    private String secretKey;
 
 
 

@@ -17,6 +17,7 @@ public class PaymentResponseDto {
 
     private UUID paymentId;
     private UUID orderId;
+    private UUID userId;
     private PaymentStatus status;
     private Integer price;
     private String pgTransactionId;
@@ -29,6 +30,7 @@ public class PaymentResponseDto {
         return PaymentResponseDto.builder()
                 .paymentId(payment.getPaymentId())
                 .orderId(payment.getOrderId())
+                .userId(payment.getUserId())
                 .status(payment.getStatus())
                 .price(payment.getPrice())
                 .pgTransactionId(payment.getPgTransactionId())

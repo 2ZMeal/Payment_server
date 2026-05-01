@@ -17,8 +17,6 @@ import org.ezmeal.payment.domain.model.enums.PgProvider;
 
 public class Payment extends BaseEntity {
 
-
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "payment_id")
@@ -72,7 +70,6 @@ public class Payment extends BaseEntity {
         this.pgProvider = pgProvider;
         this.paymentMethod = paymentMethod;
     }
-
 
 
     /**

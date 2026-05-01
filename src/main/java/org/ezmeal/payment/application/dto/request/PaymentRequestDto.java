@@ -9,8 +9,8 @@ import org.ezmeal.payment.domain.model.enums.PgProvider;
 @Getter
 @Builder
 public class PaymentRequestDto {
+
     private UUID orderId;
-    private UUID userId;
     private Integer price;
     private Integer totalPrice;
     private PgProvider pgProvider;
