@@ -14,6 +14,7 @@ import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.ezmeal.payment.domain.model.Payment;
 import org.ezmeal.payment.domain.model.PaymentLog;
 import org.ezmeal.payment.domain.model.enums.LogType;
+import org.ezmeal.payment.domain.model.enums.PaymentMethod;
 import org.ezmeal.payment.domain.model.enums.PaymentStatus;
 import org.ezmeal.payment.domain.repository.PaymentLogRepository;
 import org.ezmeal.payment.domain.repository.PaymentRepository;
@@ -111,6 +112,22 @@ public class PaymentServiceImpl implements PaymentService {
         //  여기서 요청 금액(request.getAmount())이 DB랑 다르면 바로 컷
         if (!payment.getPrice().equals(request.getAmount())) {
             throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
+        }
+
+        if (payment.getPaymentMethod() == PaymentMethod.CARD) {
+            String cardTransactionId = "CARD-" + UUID.randomUUID();
+            payment.updateStatus(PaymentStatus.COMPLETED, cardTransactionId);
+
+            paymentLogRepository.save(PaymentLog.builder()
+                    .payment(payment)
+                    .paymentMethod(payment.getPaymentMethod())
+                    .logType(LogType.APPROVE)
+                    .status(PaymentStatus.COMPLETED)
+                    .requestData(request.toString())
+                    .responseData(cardTransactionId)
+                    .build());
+
+            return PaymentResponseDto.from(payment);
         }
 
         try {
