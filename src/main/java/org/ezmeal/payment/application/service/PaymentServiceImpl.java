@@ -80,14 +80,26 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentResponseDto> getPaymentList() {
+    public List<PaymentResponseDto> getPaymentList(UUID currentUserId, String roles) {
         // 1. 모든 결제 내역 조회 (실제로는 페이징 처리가 필요하지만 일단 리스트로 구현)
-        List<Payment> payments = paymentRepository.findAll();
+        List<Payment> payments = hasRole(roles, "ADMIN")
+                ? paymentRepository.findAll()
+                : paymentRepository.findAllByUserId(currentUserId);
 
         // 2. 리스트 변환 (Stream 활용)
         return payments.stream()
                 .map(PaymentResponseDto::from)
                 .collect(Collectors.toList());
+    }
+
+    private boolean hasRole(String roles, String role) {
+        if (roles == null || roles.isBlank()) {
+            return false;
+        }
+
+        return List.of(roles.split(",")).stream()
+                .map(String::trim)
+                .anyMatch(value -> value.equals(role) || value.equals("ROLE_" + role));
     }
 
 
@@ -181,6 +193,32 @@ public class PaymentServiceImpl implements PaymentService {
         }
     }
 
+    @Override
+    @Transactional
+    public PaymentResponseDto cancelPayment(UUID paymentId, String cancelReason, UUID currentUserId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
+        if (!payment.getUserId().equals(currentUserId)) {
+            throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
+        }
+
+        if (payment.getStatus() == PaymentStatus.CANCELLED
+                || payment.getStatus() == PaymentStatus.FAILED) {
+            throw new CustomException(PaymentErrorCode.ALREADY_PROCESSED_PAYMENT);
+        }
+
+        payment.cancel(cancelReason);
+
+        paymentLogRepository.save(PaymentLog.builder()
+                .payment(payment)
+                .paymentMethod(payment.getPaymentMethod())
+                .logType(LogType.CANCEL)
+                .status(PaymentStatus.CANCELLED)
+                .requestData(cancelReason)
+                .build());
+
+        return PaymentResponseDto.from(payment);
+    }
 
 }

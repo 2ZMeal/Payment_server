@@ -15,5 +15,6 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     // 2. 또는 특정 주문의 모든 결제 시도 내역 조회
     List<Payment> findAllByOrderId(UUID orderId);
 
+    List<Payment> findAllByUserId(UUID userId);
 
 }

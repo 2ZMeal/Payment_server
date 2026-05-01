@@ -55,6 +55,14 @@ public class Payment extends BaseEntity {
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 
+
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+
     @Builder
     public Payment(UUID orderId, UUID userId, PaymentStatus status, Integer price,
                    Integer totalPrice, PgProvider pgProvider, PaymentMethod paymentMethod) {
@@ -76,7 +84,6 @@ public class Payment extends BaseEntity {
      * PG사와 결제 수단 조합 검증
      */
     private void validatePgAndMethod(PgProvider provider, PaymentMethod method) {
-        // "너의 주인(validProvider)이 내가 입력받은 provider가 맞니?" 라고 물어보면 끝!
         if (method.getValidProvider() != provider) {
             throw new IllegalArgumentException(
                     String.format("%s 대행사에서 %s 수단을 사용할 수 없습니다.", provider, method)
@@ -91,11 +98,12 @@ public class Payment extends BaseEntity {
         this.paidAt = LocalDateTime.now();
     }
 
-    // 결제 실패/취소 로직
-    public void cancel() {
+    // 결제 취소 로직
+    public void cancel(String cancelReason) {
         this.status = PaymentStatus.CANCELLED;
+        this.cancellationReason = cancelReason;
+        this.cancelledAt = LocalDateTime.now();
     }
-
 
     // 업데이트 상태 로직
     public void updateStatus(PaymentStatus status, String paymentKey) {
@@ -108,6 +116,24 @@ public class Payment extends BaseEntity {
         // 만약 상태가 완료라면 시간도 같이 업데이트해주면 좋습니다.
         if (status == PaymentStatus.COMPLETED) {
             this.paidAt = LocalDateTime.now();
+        }
+    }
+
+    @PrePersist
+    protected void prePersist() {
+        String fallbackUserId = userId != null ? userId.toString() : "SYSTEM";
+        if (createdBy == null) {
+            createdBy = fallbackUserId;
+        }
+        if (modifiedBy == null) {
+            modifiedBy = fallbackUserId;
+        }
+    }
+
+    @PreUpdate
+    protected void preUpdate() {
+        if (modifiedBy == null) {
+            modifiedBy = userId != null ? userId.toString() : "SYSTEM";
         }
     }
 
