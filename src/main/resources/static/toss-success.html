@@ -133,6 +133,15 @@
   }
 
   async function confirmPayment() {
+    if (!data.userId) {
+      writeResult("오류: userId가 없습니다. 결제 테스트 페이지에서 다시 시작해주세요.");
+      return;
+    }
+    if (!data.paymentKey || !data.orderId || !Number.isInteger(data.amount)) {
+      writeResult("오류: 승인에 필요한 paymentKey, orderId, amount가 없습니다.");
+      return;
+    }
+
     document.getElementById("confirmButton").disabled = true;
     writeResult("승인 요청 중입니다.");
 

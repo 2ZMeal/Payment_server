@@ -17,8 +17,10 @@ public interface PaymentService {
     PaymentResponseDto getPaymentDetail(UUID paymentId);
 
     //  4. 결제 목록 조회
-    List<PaymentResponseDto> getPaymentList();
+    List<PaymentResponseDto> getPaymentList(UUID currentUserId, String roles);
 
+    // 5. 결제 취소
+    PaymentResponseDto cancelPayment(UUID paymentId, String cancelReason, UUID currentUserId);
 
 }
 

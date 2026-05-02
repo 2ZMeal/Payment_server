@@ -43,5 +43,27 @@ public class PaymentLog extends BaseEntity {
 
     @Column(name = "response_data", columnDefinition = "TEXT")
     private String responseData;
+
+    @PrePersist
+    protected void prePersist() {
+        String fallbackUserId = payment != null && payment.getUserId() != null
+                ? payment.getUserId().toString()
+                : "SYSTEM";
+        if (createdBy == null) {
+            createdBy = fallbackUserId;
+        }
+        if (modifiedBy == null) {
+            modifiedBy = fallbackUserId;
+        }
+    }
+
+    @PreUpdate
+    protected void preUpdate() {
+        if (modifiedBy == null) {
+            modifiedBy = payment != null && payment.getUserId() != null
+                    ? payment.getUserId().toString()
+                    : "SYSTEM";
+        }
+    }
 }
 
