@@ -1,25 +1,23 @@
-# 1. 빌드 스테이지
-FROM eclipse-temurin:21-jdk AS builder
+# ---- Build Stage ----
+FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
-# 빌드에 필요한 파일 복사
+
+ARG GPR_USER
+ARG GPR_TOKEN
+ENV GPR_USER=${GPR_USER}
+ENV GPR_TOKEN=${GPR_TOKEN}
+
 COPY gradlew .
-COPY gradle gradle
-COPY build.gradle .
-COPY settings.gradle .
-COPY delivery-service/build.gradle delivery-service/build.gradle
-COPY delivery-service/src delivery-service/src
-# 권한 부여 및 빌드 (gradle 대신 ./gradlew 사용!)
-
-
-
-
-
+COPY gradle/ gradle/
+COPY build.gradle settings.gradle ./
 RUN chmod +x gradlew
-RUN ./gradlew :delivery-service:bootJar --no-daemon
-# 2. 실행 스테이지
-FROM eclipse-temurin:21-jre
+RUN ./gradlew dependencies --no-daemon || true
+COPY src/ src/
+RUN ./gradlew bootJar -x test --no-daemon
 
+# ---- Runtime Stage ----
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-# --from=builder 경로를 /app으로 수정!
-COPY --from=builder /app/payment-service/build/libs/*.jar app.jar
+COPY --from=builder /app/build/libs/*.jar app.jar
+EXPOSE 19087
 ENTRYPOINT ["java", "-jar", "app.jar"]
