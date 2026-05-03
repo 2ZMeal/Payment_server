@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
 import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
@@ -23,7 +24,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
@@ -39,6 +40,9 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public PaymentResponseDto createPayment(PaymentRequestDto requestDto,  UUID authenticatedUserId) {
 
+        // 🎯 결제 요청 시작 로그
+        log.info("[결제 생성 요청] orderId: {}, userId: {}, amount: {}", requestDto.getOrderId(), authenticatedUserId, requestDto.getTotalPrice());
+
         // 1. 결제 엔티티 생성
         Payment payment = Payment.builder()
                 .orderId(requestDto.getOrderId())
@@ -53,7 +57,7 @@ public class PaymentServiceImpl implements PaymentService {
         Payment savedPayment = paymentRepository.save(payment);
 
         // 2. 결제 로그 기록 (REQUEST 타입)
-        PaymentLog log = PaymentLog.builder()
+        PaymentLog paymentLogEntity  = PaymentLog.builder()
                 .payment(savedPayment)
                 .paymentMethod(savedPayment.getPaymentMethod())
                 .logType(LogType.REQUEST)
@@ -61,7 +65,10 @@ public class PaymentServiceImpl implements PaymentService {
                 .requestData(requestDto.toString()) // 실제로는 JSON 직렬화 권장
                 .build();
 
-        paymentLogRepository.save(log);
+        paymentLogRepository.save(paymentLogEntity );
+
+        // 🎯 결제 생성 완료 로그
+        log.info("[결제 생성 완료] paymentId: {}, DB 저장 성공", savedPayment.getPaymentId());
 
         return PaymentResponseDto.from(savedPayment);
     }
@@ -106,6 +113,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponseDto approvePayment(TossConfirmRequest request, UUID currentUserId) {
+
+        // 🎯 결제 승인 요청 수신 로그
+        log.info("[결제 승인 요청 수신] orderId: {}, paymentKey: {}, amount: {}", request.getOrderId(), request.getPaymentKey(), request.getAmount());
+
         // 1. DB 조회
         Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(request.getOrderId())
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
@@ -168,11 +179,16 @@ public class PaymentServiceImpl implements PaymentService {
             // 성공 로그 기록
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
+                    // 추가됨 (05.03 새벽)
+                    .paymentMethod(payment.getPaymentMethod())
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.COMPLETED)
                     .requestData(request.toString())
                     .responseData(response.toString())
                     .build());
+
+            // 🎯 최종 성공 로그
+            log.info("[결제 승인 완료] 토스 최종 승인 및 DB 반영 성공 - paymentKey: {}", response.getPaymentKey());
 
             return PaymentResponseDto.from(payment);
 
@@ -184,6 +200,8 @@ public class PaymentServiceImpl implements PaymentService {
 
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
+                    // 추가됨 05.03 새벽
+                    .paymentMethod(payment.getPaymentMethod())
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.FAILED)
                     .requestData(e.getMessage())

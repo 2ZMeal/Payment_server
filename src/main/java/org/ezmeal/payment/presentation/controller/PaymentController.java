@@ -12,6 +12,7 @@ import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.service.PaymentService;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
+// CORS 임시 해제 (프론트와 소통을 위해)
+@CrossOrigin(origins = "http://localhost:3000", allowedHeaders = "*")
 public class PaymentController {
 
     private final PaymentService paymentService;
@@ -75,7 +78,7 @@ public class PaymentController {
         return CommonApiResponse.success(responses);
     }
 
-    @GetMapping("/{payment_id}/cancel")
+    @PostMapping("/{payment_id}/cancel")
     public CommonApiResponse<PaymentResponseDto> cancelPayment(
             @PathVariable("payment_id") UUID paymentId,
             @RequestBody PaymentCancelRequest request,
