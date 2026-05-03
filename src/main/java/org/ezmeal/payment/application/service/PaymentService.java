@@ -22,6 +22,8 @@ public interface PaymentService {
     // 5. 결제 취소
     PaymentResponseDto cancelPayment(UUID paymentId, String cancelReason, UUID currentUserId);
 
+    //  추가 (Kafka에서 호출용)
+    void completePayment(UUID paymentId, String paymentKey, UUID currentUserId);
 }
 
 

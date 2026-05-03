@@ -11,6 +11,9 @@ import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
 import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.dto.response.TossConfirmResponse;
+import org.ezmeal.payment.domain.event.PaymentEventProducer;
+import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
+import org.ezmeal.payment.domain.event.payload.PaymentCompletedEvent;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.ezmeal.payment.domain.model.Payment;
 import org.ezmeal.payment.domain.model.PaymentLog;
@@ -23,6 +26,7 @@ import org.ezmeal.payment.infrastructure.client.TossPaymentClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClient.Builder;
 
 @Slf4j
 @Service
@@ -32,6 +36,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentLogRepository paymentLogRepository;
     private final TossPaymentClient tossPaymentClient;
+    private final PaymentEventProducer paymentEventProducer;
+    private final Builder builder;
 
     @Value("${payment.toss.secret-key}")
     private String secretKey;
@@ -150,6 +156,9 @@ public class PaymentServiceImpl implements PaymentService {
                     .responseData(cardTransactionId)
                     .build());
 
+
+
+
             return PaymentResponseDto.from(payment);
         }
 
@@ -186,9 +195,19 @@ public class PaymentServiceImpl implements PaymentService {
                     .requestData(request.toString())
                     .responseData(response.toString())
                     .build());
-
             // 🎯 최종 성공 로그
             log.info("[결제 승인 완료] 토스 최종 승인 및 DB 반영 성공 - paymentKey: {}", response.getPaymentKey());
+
+            PaymentCompletedEvent event = PaymentCompletedEvent.of(
+                    payment.getPaymentId(),      // ✅ 실제 객체에서 가져옴
+                    payment.getOrderId(),
+                    payment.getUserId(),
+                    payment.getPrice(),
+                    response.getPaymentKey()
+            );
+
+            paymentEventProducer.publishCompletedEvent(event);
+
 
             return PaymentResponseDto.from(payment);
 
@@ -228,6 +247,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         payment.cancel(cancelReason);
 
+
         paymentLogRepository.save(PaymentLog.builder()
                 .payment(payment)
                 .paymentMethod(payment.getPaymentMethod())
@@ -236,7 +256,36 @@ public class PaymentServiceImpl implements PaymentService {
                 .requestData(cancelReason)
                 .build());
 
+
+        // kafka 이벤트
+        PaymentCancelledEvent event = PaymentCancelledEvent.of(
+                payment.getPaymentId(),      // ✅ 실제 객체에서 가져옴
+                payment.getOrderId(),
+                payment.getUserId(),
+                payment.getPrice(),
+                cancelReason
+        );
+
+        paymentEventProducer.publishCancelledEvent(event);
+
+
         return PaymentResponseDto.from(payment);
+
     }
+
+
+    //kafka
+    @Override
+    public void completePayment(UUID paymentId, String paymentKey, UUID currentUserId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Payment not found"));
+
+        payment.complete(paymentKey);
+        paymentRepository.save(payment);
+
+        log.info("결제 완료: paymentId={}, userId={}", paymentId, currentUserId);
+    }
+
+
 
 }
