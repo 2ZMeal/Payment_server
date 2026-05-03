@@ -16,5 +16,5 @@ spring:
 payment:
   toss:
     url: https://api.tosspayments.com/v1/payments
-    secret-key: test_sk_oEjb0gm23Pj7bllxa00nrpGwBJn5
-    client-key: test_ck_QbgMGZzorz4O24Dbe74N3l5E1em4
+    secret-key: ${TOSS_SECRET_KEY}
+    client-key: ${TOSS_CLIENT_KEY}
