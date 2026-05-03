@@ -38,8 +38,7 @@ public class Payment extends BaseEntity {
     @Column(name = "total_price", nullable = false)
     private Integer totalPrice;
 
-    @Column(name = "payment_key") // DB 컬럼명 지정
-    private String paymentKey;
+
 
     @Column(name = "pg_transaction_id")
     private String pgTransactionId;
