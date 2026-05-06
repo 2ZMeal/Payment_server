@@ -20,4 +20,5 @@ public class PaymentRequestDto {
     private Integer totalPrice;
     private PgProvider pgProvider;
     private PaymentMethod paymentMethod;
+    private Integer amount;
 }

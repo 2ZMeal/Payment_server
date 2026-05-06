@@ -2,16 +2,21 @@ package org.ezmeal.payment.presentation.controller;
 
 import com.ezmeal.common.exception.CustomException;
 import com.ezmeal.common.response.CommonApiResponse;
+import com.ezmeal.common.security.principal.CustomUserPrincipal;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.ezmeal.payment.application.dto.request.NicePayConfirmRequest;
 import org.ezmeal.payment.application.dto.request.PaymentCancelRequest;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
 import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
+import org.ezmeal.payment.application.service.PaymentNiceService;
 import org.ezmeal.payment.application.service.PaymentService;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final PaymentNiceService paymentNiceService;
 
     @PostMapping
     public CommonApiResponse<PaymentResponseDto> createPayment(
@@ -100,4 +107,5 @@ public class PaymentController {
             throw new CustomException(PaymentErrorCode.INVALID_USER_ID);
         }
     }
+
 }
