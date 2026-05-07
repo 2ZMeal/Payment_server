@@ -17,3 +17,5 @@ payment:
    toss:
       url: https://api.tosspayments.com/v1/payments
       secret-key: ${TOSS_SECRET_KEY}
+      client-key: ${TOSS_CLIENT_KEY}
+
