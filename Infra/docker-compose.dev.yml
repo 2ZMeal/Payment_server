@@ -1,0 +1,405 @@
+# 로컬 개발 전용 Compose 파일
+#
+# 사용법:
+#   infra만 실행 (IntelliJ로 서비스 개발):
+#     docker compose -f docker-compose.dev.yml --profile infra up -d
+#     (config-server 등의 platform도 실행)
+#     docker compose -f docker-compose.dev.yml --profile infra --profile platform up -d
+#
+#   infra + platform 빌드 & 실행 (최초 세팅 및 코드 변경 후):
+#     docker compose -f docker-compose.dev.yml --profile infra --profile platform up -d --build
+#
+#   platform 이미지 강제 재빌드:
+#     docker compose -f docker-compose.dev.yml --profile infra --profile platform build --no-cache
+#
+#   전체 종료:
+#     docker compose -f docker-compose.dev.yml down
+#
+# 프로필:
+#   infra      -- PostgreSQL, Redis, Kafka, Keycloak (항상 필요)
+#   platform   -- Config Server, Eureka, API Gateway (소스에서 직접 빌드)
+#   app        -- 10개 도메인 서비스 (해당 레포 클론 후 사용 가능)
+#   monitoring -- Prometheus, Grafana, Zipkin
+
+services:
+
+  # -- PostgreSQL --------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    profiles: [infra]
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -- Redis -------------------------------------------------------
+  redis:
+    image: redis:7
+    container_name: redis
+    profiles: [infra]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -- Zookeeper ---------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    profiles: [infra]
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "echo ruok | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -- Kafka -------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    profiles: [infra]
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -- Kafka UI ----------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    profiles: [infra]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "9001:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  # -- Keycloak ----------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.3
+    container_name: keycloak
+    profiles: [infra]
+#    command: start-dev
+    command:
+      - start-dev
+      - --import-realm
+    env_file: .env
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/8080"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # -- Config Server (소스에서 빌드) --------------------------------
+  config-server:
+    environment:
+      SPRING_PROFILES_ACTIVE: native,local
+    build:
+      context: ../Config_server
+      dockerfile: Dockerfile
+    image: easymeal/config-server:dev
+    container_name: config-server
+    profiles: [platform]
+    env_file: .env
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config:/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8888/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -- Eureka Server (소스에서 빌드) --------------------------------
+  eureka-server:
+    build:
+      context: ../Eureka_Server
+      dockerfile: Dockerfile
+    image: easymeal/eureka-server:dev
+    container_name: eureka-server
+    profiles: [platform]
+    environment:
+      EUREKA_HOSTNAME: eureka-server
+    ports:
+      - "8761:8761"
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -- API Gateway (소스에서 빌드) ----------------------------------
+  api-gateway:
+    build:
+      context: ../Gateway_server
+      dockerfile: Dockerfile
+    image: easymeal/api-gateway:dev
+    container_name: api-gateway
+    profiles: [platform]
+    ports:
+      - "8080:8080"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # -- Domain Services (app profile) --------------------------------
+  # 해당 서비스 레포를 ../서비스명 경로에 클론한 뒤 --profile app으로 실행
+  user-service:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      CONFIG_SERVER_URI: http://config-server:8888
+    build:
+      context: ../user-service
+      dockerfile: Dockerfile
+    image: easymeal/user-service:dev
+    container_name: user-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19081:19081"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  company-service:
+    build:
+      context: ../company-service
+      dockerfile: Dockerfile
+    image: easymeal/company-service:dev
+    container_name: company-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19082:19082"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  product-service:
+    build:
+      context: ../product-service
+      dockerfile: Dockerfile
+    image: easymeal/product-service:dev
+    container_name: product-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19083:19083"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  cart-service:
+    build:
+      context: ../cart-service
+      dockerfile: Dockerfile
+    image: easymeal/cart-service:dev
+    container_name: cart-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19084:19084"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: ../order-service
+      dockerfile: Dockerfile
+    image: easymeal/order-service:dev
+    container_name: order-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19085:19085"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: ../payment-service
+      dockerfile: Dockerfile
+    image: easymeal/payment-service:dev
+    container_name: payment-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19086:19086"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  shipment-service:
+    build:
+      context: ../Shipment_server
+      dockerfile: Dockerfile
+    image: easymeal/shipment-service:dev
+    container_name: shipment-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19087:19087"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ../notification-service
+      dockerfile: Dockerfile
+    image: easymeal/notification-service:dev
+    container_name: notification-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19088:19088"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  review-service:
+    build:
+      context: ../review-service
+      dockerfile: Dockerfile
+    image: easymeal/review-service:dev
+    container_name: review-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19089:19089"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  customer-service:
+    build:
+      context: ../customer-service
+      dockerfile: Dockerfile
+    image: easymeal/customer-service:dev
+    container_name: customer-service
+    profiles: [app]
+    env_file: .env
+    ports:
+      - "19090:19090"
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # -- Prometheus --------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    profiles: [monitoring]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  # -- Grafana -----------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    profiles: [monitoring]
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    depends_on:
+      - prometheus
+
+  # -- Zipkin ------------------------------------------------------
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: zipkin
+    profiles: [monitoring]
+    ports:
+      - "9411:9411"
+
+volumes:
+  postgres_data:

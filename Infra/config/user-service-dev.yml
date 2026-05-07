@@ -1,0 +1,34 @@
+# SPRING ------------------------------------------------------------------
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://postgres:5432/user_db
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    show-sql: false
+    # user-service는 flyway사용하기때문에 validate 강제
+    hibernate:
+      ddl-auto: validate
+
+  kafka:
+    bootstrap-servers: kafka:9092
+
+  flyway:
+    baseline-on-migrate: true # 필요할 때만
+
+# EUREKA ------------------------------------------------------------------
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka
+
+# KEYCLOAK -----------------------------------------------------------------
+keycloak:
+  auth-server-url: http://keycloak:8080
+  realm: easymeal
+  client-id: easymeal-client
+  client-secret: ${KEYCLOAK_CLIENT_SECRET}

@@ -1,0 +1,10 @@
+server:
+  port: 19086
+
+spring:
+  application:
+    name: payment-service
+  kafka:
+    consumer:
+      group-id: payment-group
+      auto-offset-reset: earliest

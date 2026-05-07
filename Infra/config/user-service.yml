@@ -1,0 +1,20 @@
+server:
+  port: 19081
+
+spring:
+  application:
+    name: user-service
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  kafka:
+    consumer:
+      group-id: user-group
+      auto-offset-reset: earliest
+
+eureka:
+  client:
+    register-with-eureka: true
+    fetch-registry: true

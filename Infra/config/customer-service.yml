@@ -1,0 +1,10 @@
+server:
+  port: 19090
+
+spring:
+  application:
+    name: customer-service
+  kafka:
+    consumer:
+      group-id: customer-group
+      auto-offset-reset: earliest
