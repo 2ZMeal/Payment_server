@@ -13,9 +13,9 @@ public enum PaymentMethod {
 
     TOSS("토스페이", PgProvider.TOSS),
 
-    KAKAO("카카오페이",PgProvider.KAKAO);
+    KAKAO("카카오페이",PgProvider.KAKAO),
 
-
+    NICEPAY("나이스페이",PgProvider.NICEPAY);
 
     private final String description;
     private final PgProvider validProvider;

@@ -31,7 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 // CORS 임시 해제 (프론트와 소통을 위해)
-@CrossOrigin(origins = "http://localhost:3000", allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*")
+
 public class PaymentController {
 
     private final PaymentService paymentService;
