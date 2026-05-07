@@ -1,0 +1,10 @@
+server:
+  port: 19084
+
+spring:
+  application:
+    name: cart-service
+  kafka:
+    consumer:
+      group-id: cart-group
+      auto-offset-reset: earliest

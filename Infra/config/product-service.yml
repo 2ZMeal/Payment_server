@@ -1,0 +1,10 @@
+server:
+  port: 19083
+
+spring:
+  application:
+    name: product-service
+  kafka:
+    consumer:
+      group-id: product-group
+      auto-offset-reset: earliest

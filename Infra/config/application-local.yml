@@ -1,0 +1,30 @@
+###############################################
+# IDE + Docker 혼합 개발용 (Docker -> localhost) #
+###############################################
+# 참고) 도커에 컨테이너를 올리게되면 해당 컨테이너의 localhost은 본인 스스로가 되기에
+#      host.docker.internal를 통해 host machine에 접근 가능하도록 합니다.
+
+# EUREKA ---------------------------------------------------
+eureka:
+  instance:
+    prefer-ip-address: false
+    hostname: host.docker.internal
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    register-with-eureka: true
+    fetch-registry: true
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
+# SPRING ---------------------------------------------------
+spring:
+  jpa:
+    # 개발환경에서는 기본적으로 update를 통해 테이블 변경사항을 쉽게 적용할 수 있도록 합니다.
+    hibernate:
+      ddl-auto: update
+
+# MONITORING -----------------------------------------------
+management:
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
