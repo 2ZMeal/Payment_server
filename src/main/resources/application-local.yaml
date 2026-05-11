@@ -18,3 +18,11 @@ payment:
     url: https://api.tosspayments.com/v1/payments
     secret-key: ${TOSS_SECRET_KEY}
     client-key: ${TOSS_CLIENT_KEY}
+
+  nicepay:
+    name: NICEPAY
+    api-url: https://api.nicepay.co.kr/v1/payments
+    sandbox-url: https://sandbox-api.nicepay.co.kr/v1/payments
+    client-key: ${NICEPAY_CLIENT_KEY}
+    secret-key: ${NICEPAY_SECRET_KEY}
+    sandbox: true

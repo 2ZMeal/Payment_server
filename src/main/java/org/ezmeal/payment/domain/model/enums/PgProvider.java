@@ -1,5 +1,5 @@
 package org.ezmeal.payment.domain.model.enums;
 
 public enum PgProvider {
-    TOSS, KAKAO, CARD
+    TOSS, KAKAO, CARD, NICEPAY
 }
