@@ -12,6 +12,17 @@ spring:
       retry:
         max-attempts: 3
         initial-interval: 1000
+  management:
+    tracing:
+      sampling:
+        probability: 1.0  # 개발 중 모든 요청 추적
+    zipkin:
+      tracing:
+        endpoint: http://localhost:9411/api/v2/spans
+
+  logging:
+    pattern:
+      level: "%5p [${spring.application.name:}, traceId=%X{traceId:-}, spanId=%X{spanId:-}]"
 
 payment:
   toss:

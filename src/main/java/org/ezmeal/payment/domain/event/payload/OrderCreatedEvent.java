@@ -1,5 +1,6 @@
 package org.ezmeal.payment.domain.event.payload;
 
+import com.ezmeal.common.message.DomainEvent;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.UUID;
@@ -12,7 +13,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class OrderCreatedEvent implements Serializable {
+public class OrderCreatedEvent implements DomainEvent, Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;

@@ -2,7 +2,7 @@ package org.ezmeal.payment.presentation.controller;
 
 import com.ezmeal.common.exception.CustomException;
 import com.ezmeal.common.response.CommonApiResponse;
-import java.util.UUID;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.application.dto.request.NicePayConfirmRequest;
@@ -11,13 +11,9 @@ import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.service.PaymentNiceService;
 import org.ezmeal.payment.application.service.PaymentService;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 /**
  * PG 제공사별 결제 승인 API Controller
@@ -68,7 +64,7 @@ public class PgController {
      */
     @PostMapping("/toss/payments/confirm")
     public CommonApiResponse<PaymentResponseDto> confirmTossPayment(
-            @RequestBody TossConfirmRequest requestDto,
+            @Valid @RequestBody TossConfirmRequest requestDto,
             @RequestHeader(value = "X-User-Id") String userIdHeader
     ) {
         UUID currentUserId = parseUserId(userIdHeader);
@@ -121,7 +117,7 @@ public class PgController {
      */
     @PostMapping("/nicepay/payments/confirm")
     public CommonApiResponse<PaymentResponseDto> confirmNicePayPayment(
-            @RequestBody NicePayConfirmRequest requestDto,
+            @Valid @RequestBody NicePayConfirmRequest requestDto,
             @RequestHeader(value = "X-User-Id") String userIdHeader
     ) {
         UUID currentUserId = parseUserId(userIdHeader);

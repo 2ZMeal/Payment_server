@@ -32,6 +32,9 @@ ext {
 
 dependencies {
 
+
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
     implementation 'org.springframework.cloud:spring-cloud-starter-config'
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     // 인프라
@@ -39,7 +42,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
     //  공통모듈
-    implementation 'com.ezmeal:common:0.0.5'
+    implementation 'com.ezmeal:common:0.1.2'
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 

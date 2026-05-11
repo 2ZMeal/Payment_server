@@ -1,26 +1,113 @@
-//package org.ezmeal.payment.infrastructure.message.kafka.consumer;
-//
-//import lombok.RequiredArgsConstructor;
-//import lombok.extern.slf4j.Slf4j;
-//import org.springframework.kafka.annotation.KafkaListener;
-//import org.springframework.messaging.handler.annotation.Payload;
-//import org.springframework.stereotype.Component;
-//import java.util.UUID;
-//
-//@Slf4j
-//@Component
-//@RequiredArgsConstructor
-//public class PaymentEventListener {
-//
-//    @KafkaListener(
-//            topics = "order.created",
-//            groupId = "payment-service"
-//    )
-//    public void handleOrderCreatedEvent(@Payload UUID orderId) {
-//        log.info("[Kafka] 주문 생성 이벤트 수신: orderId={}", orderId);
-//
-//        // Order Service에서 주문이 생성되었으니
-//        // Payment Service에서 해야 할 작업 (예: 결제 준비, 예약금 처리 등)
-//    }
-//}
-//
+package org.ezmeal.payment.infrastructure.message.kafka.consumer;
+
+import com.ezmeal.common.message.EventEnvelope;
+import com.ezmeal.common.message.inbox.InboxProcessor;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
+import org.ezmeal.payment.domain.event.payload.PaymentCompletedEvent;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.stereotype.Component;
+
+/**
+ * [역할]
+ * Kafka에서 수신한 Payment 관련 이벤트를 처리하는 Consumer
+ *
+ * [처리 흐름]
+ * 1. @KafkaListener로 Topic 구독
+ * 2. EventEnvelope 형태로 자동 역직렬화 (공통 모듈 StringJsonMessageConverter)
+ * 3. InboxProcessor.processOnce()에 위임
+ *    - eventId 기반 중복 수신 감지
+ *    - 비즈니스 로직과 Inbox 저장을 하나의 @Transactional로 보장
+ *
+ * [왜 InboxProcessor를 사용하는가?]
+ * Kafka 메시지 재전송 시 멱등성 보장
+ * 예) 같은 이벤트가 2번 수신됨
+ *    1️⃣ 첫 번째: Inbox에 eventId 저장 ✓
+ *    2️⃣ 두 번째: Inbox 중복 감지 → 조기 종료 ✓ (중복 처리 방지)
+ */
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class PaymentEventListener {
+
+    private final InboxProcessor inboxProcessor;
+
+    /**
+     * [구독 Topic]
+     * payment-completed-event-topic
+     * - KafkaTopicConfig.paymentCompletedEventTopic()에서 생성
+     *
+     * [Consumer Group]
+     * payment-service-group
+     * - application.yaml의 spring.kafka.consumer.group-id 설정
+     *
+     * [메시지 형식]
+     * EventEnvelope<PaymentCompletedEvent>
+     * - eventId: 중복 제거용 고유 ID
+     * - eventType: "PAYMENT_COMPLETED"
+     * - aggregateId: paymentId (순서 보장)
+     * - occurredAt: 발행 시간
+     * - payload: 실제 PaymentCompletedEvent 데이터
+     */
+    @KafkaListener(
+            topics = "payment-completed-event-topic",
+            groupId = "payment-service-group"
+    )
+    public void handlePaymentCompletedEvent(EventEnvelope<PaymentCompletedEvent> event) {
+        log.info("[Kafka Listener] 결제 완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+                event.eventId(),
+                event.payload().getPaymentId(),
+                event.payload().getOrderId());
+
+        // ✅ InboxProcessor: 멱등성 보장
+        // - eventId를 UNIQUE 키로 사용하여 중복 수신 방지
+        // - 비즈니스 로직과 Inbox Insert를 같은 @Transactional로 보장
+        // - 실패 시 모두 롤백, 성공 시 모두 커밋
+        inboxProcessor.processOnce(event.eventId(), () -> {
+            PaymentCompletedEvent payload = event.payload();
+            log.info("[비즈니스 로직] 결제 완료 처리: orderId={}, amount={}, userId={}",
+                    payload.getOrderId(),
+                    payload.getAmount(),
+                    payload.getUserId());
+
+            // TODO: Order Service 호출하여 주문 상태 업데이트
+            // orderService.completePayment(
+            //     orderId = payload.getOrderId(),
+            //     paymentId = payload.getPaymentId(),
+            //     amount = payload.getAmount()
+            // );
+        });
+    }
+
+    /**
+     * [구독 Topic]
+     * payment-cancelled-event-topic
+     */
+    @KafkaListener(
+            topics = "payment-cancelled-event-topic",
+            groupId = "payment-service-group"
+    )
+    public void handlePaymentCancelledEvent(EventEnvelope<PaymentCancelledEvent> event) {
+        log.info("[Kafka Listener] 결제 취소 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+                event.eventId(),
+                event.payload().getPaymentId(),
+                event.payload().getOrderId());
+
+        inboxProcessor.processOnce(event.eventId(), () -> {
+            PaymentCancelledEvent payload = event.payload();
+            log.info("[비즈니스 로직] 결제 취소 처리: orderId={}, reason={}, userId={}",
+                    payload.getOrderId(),
+                    payload.getReason(),
+                    payload.getUserId());
+
+            // TODO: Order Service 호출하여 주문 상태 업데이트
+            // orderService.cancelPayment(
+            //     orderId = payload.getOrderId(),
+            //     paymentId = payload.getPaymentId(),
+            //     reason = payload.getReason()
+            // );
+        });
+    }
+}
