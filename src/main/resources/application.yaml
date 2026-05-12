@@ -17,7 +17,7 @@ spring:
     producer:
       bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
       # Kafka Producer 안정성 설정
       acks: all  # 모든 replicas에서 확인 받음 (기본값: 1)
       retries: 3  # 전송 실패 시 재시도 횟수
