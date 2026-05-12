@@ -3,14 +3,14 @@ spring:
     name: payment-service
 
   config:
-    import: "configserver:"      # Config Server에서 설정 가져옴
+    import: "optional:configserver:"      # Config Server optional
 
   cloud:
     config:
-      uri: http://config-server:8888
+      uri: http://localhost:8888
       fail-fast: false
       retry:
-        max-attempts: 3
+        max-attempts: 1
         initial-interval: 1000
 
   kafka:
