@@ -1,5 +1,6 @@
 package org.ezmeal.payment.domain.event.payload;
 
+import com.ezmeal.common.message.DomainEvent;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
@@ -14,7 +15,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class PaymentCancelledEvent implements Serializable {
+public class PaymentCancelledEvent implements DomainEvent, Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
