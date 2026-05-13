@@ -56,7 +56,7 @@ public class PaymentEventListener {
      * - payload: 실제 PaymentCompletedEvent 데이터
      */
     @KafkaListener(
-            topics = "payment-completed",
+            topics = "payment.completed",
             groupId = "payment-group"
     )
     public void handlePaymentCompletedEvent(String message) {

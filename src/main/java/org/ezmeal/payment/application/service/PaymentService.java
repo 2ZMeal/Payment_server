@@ -1,10 +1,11 @@
 package org.ezmeal.payment.application.service;
 
-import java.util.List;
-import java.util.UUID;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
 import org.ezmeal.payment.application.dto.request.TossConfirmRequest;
 import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
+
+import java.util.List;
+import java.util.UUID;
 
 public interface PaymentService {
     // 1. 결제 요청 생성 (주문 시 호출)
@@ -24,6 +25,12 @@ public interface PaymentService {
 
     //  추가 (Kafka에서 호출용)
     void completePayment(UUID paymentId, String paymentKey, UUID currentUserId);
+
+
+    // Order Service 이벤트에서 호출
+    void createPaymentFromOrder(UUID orderId, UUID userId, Integer totalAmountd);
+    void cancelPaymentFromOrder(UUID orderId, String reason);
+
 }
 
 

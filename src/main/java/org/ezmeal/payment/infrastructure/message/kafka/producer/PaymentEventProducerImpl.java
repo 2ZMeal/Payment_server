@@ -8,8 +8,8 @@ import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
 import org.ezmeal.payment.domain.event.payload.PaymentCompletedEvent;
 import org.ezmeal.payment.domain.event.payload.PaymentFailedEvent;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
 /**
  * [리팩토링 사항]
  * 공통 모듈(com.ezmeal:common)의 CommonKafkaEventPublisher로 통합
@@ -78,7 +78,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishFailedEvent(PaymentFailedEvent event){
 
         log.info("[kafka] 결제 실패 이벤트 발행: paymentId={}, orderId={}", event.getPaymentId(),event.getOrderId());
