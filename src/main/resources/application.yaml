@@ -7,40 +7,33 @@ spring:
 
   cloud:
     config:
-      uri: http://localhost:8888
+      uri: "config-server"
       fail-fast: false
       retry:
         max-attempts: 1
         initial-interval: 1000
+  management:
+    tracing:
+      sampling:
+        probability: 1.0  # 개발 중 모든 요청 추적
+    zipkin:
+      tracing:
+        endpoint: http://localhost:9411/api/v2/spans
 
-  kafka:
-    producer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      # Kafka Producer 안정성 설정
-      acks: all  # 모든 replicas에서 확인 받음 (기본값: 1)
-      retries: 3  # 전송 실패 시 재시도 횟수
-      properties:
-        linger.ms: 10  # 배치 처리를 위해 최대 10ms 대기
-        batch.size: 16384  # 배치 크기
-      
-    consumer:
-      bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      group-id: payment-service-group
-      # Consumer 설정
-      auto-offset-reset: earliest  # 처음부터 읽기
-      enable-auto-commit: false  # 수동 커밋 (Kafka Listener가 처리)
-      max-poll-records: 100
-      properties:
-        session.timeout.ms: 30000
-        heartbeat.interval.ms: 10000
+  logging:
+    pattern:
+      level: "%5p [${spring.application.name:}, traceId=%X{traceId:-}, spanId=%X{spanId:-}]"
 
 payment:
-    toss:
-      url: https://api.tosspayments.com/v1/payments
-      secret-key: ${TOSS_SECRET_KEY}
-      client-key: ${TOSS_CLIENT_KEY}
+  toss:
+    url: https://api.tosspayments.com/v1/payments
+    secret-key: ${TOSS_SECRET_KEY:dummy-toss-secret}
+    client-key: ${TOSS_CLIENT_KEY:dummy-toss-client}
 
+  nicepay:
+    name: NICEPAY
+    api-url: https://api.nicepay.co.kr/v1/payments
+    sandbox-url: https://sandbox-api.nicepay.co.kr/v1/payments
+    client-key: ${NICEPAY_CLIENT_KEY:dummy-nicepay-client}
+    secret-key: ${NICEPAY_SECRET_KEY:dummy-nicepay-secret}
+    sandbox: true

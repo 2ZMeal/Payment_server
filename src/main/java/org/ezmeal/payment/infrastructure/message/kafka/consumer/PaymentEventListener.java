@@ -2,6 +2,8 @@ package org.ezmeal.payment.infrastructure.message.kafka.consumer;
 
 import com.ezmeal.common.message.EventEnvelope;
 import com.ezmeal.common.message.inbox.InboxProcessor;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
@@ -33,6 +35,7 @@ import org.springframework.stereotype.Component;
 public class PaymentEventListener {
 
     private final InboxProcessor inboxProcessor;
+    private final ObjectMapper objectMapper;
 
     /**
      * [구독 Topic]
@@ -55,30 +58,40 @@ public class PaymentEventListener {
             topics = "payment-completed-event-topic",
             groupId = "payment-service-group"
     )
-    public void handlePaymentCompletedEvent(EventEnvelope<PaymentCompletedEvent> event) {
-        log.info("[Kafka Listener] 결제 완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
-                event.eventId(),
-                event.payload().getPaymentId(),
-                event.payload().getOrderId());
+    public void handlePaymentCompletedEvent(String message) {
+        try {
+            EventEnvelope<PaymentCompletedEvent> event = objectMapper.readValue(
+                    message,
+                    new TypeReference<EventEnvelope<PaymentCompletedEvent>>() {}
+            );
 
-        // ✅ InboxProcessor: 멱등성 보장
-        // - eventId를 UNIQUE 키로 사용하여 중복 수신 방지
-        // - 비즈니스 로직과 Inbox Insert를 같은 @Transactional로 보장
-        // - 실패 시 모두 롤백, 성공 시 모두 커밋
-        inboxProcessor.processOnce(event.eventId(), () -> {
-            PaymentCompletedEvent payload = event.payload();
-            log.info("[비즈니스 로직] 결제 완료 처리: orderId={}, amount={}, userId={}",
-                    payload.getOrderId(),
-                    payload.getAmount(),
-                    payload.getUserId());
+            log.info("[Kafka Listener] 결제 완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+                    event.eventId(),
+                    event.payload().getPaymentId(),
+                    event.payload().getOrderId());
 
-            // TODO: Order Service 호출하여 주문 상태 업데이트
-            // orderService.completePayment(
-            //     orderId = payload.getOrderId(),
-            //     paymentId = payload.getPaymentId(),
-            //     amount = payload.getAmount()
-            // );
-        });
+            // ✅ InboxProcessor: 멱등성 보장
+            // - eventId를 UNIQUE 키로 사용하여 중복 수신 방지
+            // - 비즈니스 로직과 Inbox Insert를 같은 @Transactional로 보장
+            // - 실패 시 모두 롤백, 성공 시 모두 커밋
+            inboxProcessor.processOnce(event.eventId(), () -> {
+                PaymentCompletedEvent payload = event.payload();
+                log.info("[비즈니스 로직] 결제 완료 처리: orderId={}, amount={}, userId={}",
+                        payload.getOrderId(),
+                        payload.getAmount(),
+                        payload.getUserId());
+
+                // TODO: Order Service 호출하여 주문 상태 업데이트
+                // orderService.completePayment(
+                //     orderId = payload.getOrderId(),
+                //     paymentId = payload.getPaymentId(),
+                //     amount = payload.getAmount()
+                // );
+            });
+        } catch (Exception e) {
+            log.error("[Kafka Listener] 결제 완료 이벤트 처리 실패", e);
+            throw new RuntimeException("결제 완료 이벤트 처리 실패", e);
+        }
     }
 
     /**
@@ -89,25 +102,35 @@ public class PaymentEventListener {
             topics = "payment-cancelled-event-topic",
             groupId = "payment-service-group"
     )
-    public void handlePaymentCancelledEvent(EventEnvelope<PaymentCancelledEvent> event) {
-        log.info("[Kafka Listener] 결제 취소 이벤트 수신: eventId={}, paymentId={}, orderId={}",
-                event.eventId(),
-                event.payload().getPaymentId(),
-                event.payload().getOrderId());
+    public void handlePaymentCancelledEvent(String message) {
+        try {
+            EventEnvelope<PaymentCancelledEvent> event = objectMapper.readValue(
+                    message,
+                    new TypeReference<EventEnvelope<PaymentCancelledEvent>>() {}
+            );
 
-        inboxProcessor.processOnce(event.eventId(), () -> {
-            PaymentCancelledEvent payload = event.payload();
-            log.info("[비즈니스 로직] 결제 취소 처리: orderId={}, reason={}, userId={}",
-                    payload.getOrderId(),
-                    payload.getReason(),
-                    payload.getUserId());
+            log.info("[Kafka Listener] 결제 취소 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+                    event.eventId(),
+                    event.payload().getPaymentId(),
+                    event.payload().getOrderId());
 
-            // TODO: Order Service 호출하여 주문 상태 업데이트
-            // orderService.cancelPayment(
-            //     orderId = payload.getOrderId(),
-            //     paymentId = payload.getPaymentId(),
-            //     reason = payload.getReason()
-            // );
-        });
+            inboxProcessor.processOnce(event.eventId(), () -> {
+                PaymentCancelledEvent payload = event.payload();
+                log.info("[비즈니스 로직] 결제 취소 처리: orderId={}, reason={}, userId={}",
+                        payload.getOrderId(),
+                        payload.getReason(),
+                        payload.getUserId());
+
+//                 TODO: Order Service 호출하여 주문 상태 업데이트
+//                 orderService.cancelPayment(
+//                     orderId = payload.getOrderId(),
+//                     paymentId = payload.getPaymentId(),
+//                     reason = payload.getReason()
+//                 );
+            });
+        } catch (Exception e) {
+            log.error("[Kafka Listener] 결제 취소 이벤트 처리 실패", e);
+            throw new RuntimeException("결제 취소 이벤트 처리 실패", e);
+        }
     }
 }

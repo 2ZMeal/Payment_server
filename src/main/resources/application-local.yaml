@@ -7,7 +7,7 @@ spring:
 
   cloud:
     config:
-      uri: http://localhost:8888
+      uri: "config-server"
       fail-fast: false
       retry:
         max-attempts: 1
