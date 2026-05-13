@@ -94,7 +94,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
             log.info("[Kafka] 결제 실패 이벤트 발행 완료: paymentId={}", event.getPaymentId());
         }catch (Exception e){
             log.error("[Kafka] 결제 실패 이벤트발행:paymentId={} ", event.getPaymentId(), e);
-            throw new RuntimeException("결제 실패 이벤트 발행", e);
+            throw new RuntimeException("결제 실패 이벤트 발행 !", e);
         }
 
     }
