@@ -139,7 +139,7 @@ public class PaymentEventListener {
      * payment-failed-event-topic
      */
     @KafkaListener(
-            topics = "payment-failed",
+            topics = "payment.failed",
             groupId = "payment-service-group"
     )
     public void handlePaymentFailedEvent(String message) {
