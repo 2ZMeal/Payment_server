@@ -57,7 +57,7 @@ public class PaymentEventListener {
      */
     @KafkaListener(
             topics = "payment-completed",
-            groupId = "payment-service-group"
+            groupId = "payment-group"
     )
     public void handlePaymentCompletedEvent(String message) {
         try {
@@ -66,7 +66,7 @@ public class PaymentEventListener {
                     new TypeReference<EventEnvelope<PaymentCompletedEvent>>() {}
             );
 
-            log.info("[Kafka Listener] 결제 완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+            log.info("[Kafka Listener] 결제완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
                     event.eventId(),
                     event.payload().getPaymentId(),
                     event.payload().getOrderId());
@@ -101,7 +101,7 @@ public class PaymentEventListener {
      */
     @KafkaListener(
             topics = "payment.cancelled",
-            groupId = "payment-service-group"
+            groupId = "payment-group"
     )
     public void handlePaymentCancelledEvent(String message) {
         try {
@@ -140,7 +140,7 @@ public class PaymentEventListener {
      */
     @KafkaListener(
             topics = "payment.failed",
-            groupId = "payment-service-group"
+            groupId = "payment-group"
     )
     public void handlePaymentFailedEvent(String message) {
         try {
