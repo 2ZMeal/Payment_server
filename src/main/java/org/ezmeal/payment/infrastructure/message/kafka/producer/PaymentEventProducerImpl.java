@@ -81,7 +81,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishFailedEvent(PaymentFailedEvent event){
 
-        log.info("[kafka] 결제 실패 이벤트 발행: paymentId={}, orderId={}", event.getPaymentId(),event.getOrderId());
+        log.info("[kafka] 결제 실패 이벤트 발행 ! : paymentId={}, orderId={}", event.getPaymentId(),event.getOrderId());
 
         try {
             eventPublisher.publish(
