@@ -36,7 +36,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/pg")
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:4000", "http://localhost:5173"}, allowedHeaders = "*")
 public class PgController {
 
     private final PaymentService paymentService;           // Toss

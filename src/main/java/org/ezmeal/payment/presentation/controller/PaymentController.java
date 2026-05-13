@@ -22,7 +22,7 @@ import java.util.UUID;
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 // CORS 임시 해제 (프론트와 소통을 위해)
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowedHeaders = "*")
+@CrossOrigin(origins = {"http://localhost:4000", "http://localhost:5173"}, allowedHeaders = "*")
 
 public class PaymentController {
 
@@ -84,7 +84,7 @@ public class PaymentController {
 
 
 
-    // 단건 조회
+    // 단건 조회 (paymentId로)
     @GetMapping("/{payment_id}")
     public CommonApiResponse<PaymentResponseDto> getPayment(
             @PathVariable("payment_id") UUID paymentId,
@@ -100,6 +100,22 @@ public class PaymentController {
         return CommonApiResponse.success(response);
     }
 
+    // 단건 조회 (orderId로) ✅ NEW
+    @GetMapping("/order/{order_id}")
+    public CommonApiResponse<PaymentResponseDto> getPaymentByOrderId(
+            @PathVariable("order_id") UUID orderId,
+            @RequestHeader(value = "X-User-Id") String userIdHeader
+    ) {
+        UUID currentUserId = parseUserId(userIdHeader);
+        PaymentResponseDto response = paymentService.getPaymentByOrderId(orderId);
+
+        // 권한 확인: 자신의 결제 정보만 조회 가능
+        if (!response.getUserId().equals(currentUserId)) {
+            throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
+        }
+
+        return CommonApiResponse.success(response);
+    }
 
     // 전체 조회
     @GetMapping
