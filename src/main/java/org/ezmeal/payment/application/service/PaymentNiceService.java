@@ -1,11 +1,6 @@
 package org.ezmeal.payment.application.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
-import java.util.Map;
-import java.util.UUID;
+import com.ezmeal.common.exception.CustomException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.application.dto.request.NicePayConfirmRequest;
@@ -15,7 +10,6 @@ import org.ezmeal.payment.domain.event.PaymentEventProducer;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.ezmeal.payment.domain.model.Payment;
 import org.ezmeal.payment.domain.repository.PaymentRepository;
-import org.ezmeal.payment.infrastructure.message.kafka.producer.PaymentEventProducerImpl;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -26,7 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
-import com.ezmeal.common.exception.CustomException;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Base64;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Nice Pay 결제 서비스
@@ -88,6 +88,8 @@ public class PaymentNiceService {
         log.info("[Nice Pay] 결제 승인 시작 - tid: {}, orderId: {}, amount: {}",
                 request.getTid(), request.getOrderId(), request.getAmount());
 
+        Payment payment = null;  // ← 여기서 선언!
+
         try {
             // 1. 인증 성공 여부 확인
             if (!request.isAuthSuccess()) {
@@ -102,7 +104,7 @@ public class PaymentNiceService {
 
             // 3. 주문 조회
             UUID orderId = UUID.fromString(request.getOrderId());
-            Payment payment = paymentRepository.findByOrderId(orderId)
+            payment = paymentRepository.findByOrderId(orderId)
                     .orElseThrow(() -> {
                         log.error("[Nice Pay] 주문을 찾을 수 없음 - orderId: {}", orderId);
                         return new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND);
@@ -158,9 +160,18 @@ public class PaymentNiceService {
 
         } catch (CustomException e) {
             log.error("[Nice Pay] 결제 승인 실패 - {}", e.getMessage());
+
+            // ✅ 결제 실패 처리
+            handlePaymentFailure(payment, e.getMessage(), "CUSTOM_ERROR");
+
             throw e;
+
         } catch (Exception e) {
             log.error("[Nice Pay] 예상치 못한 에러 발생", e);
+
+            // ✅ 결제 실패 처리
+            handlePaymentFailure(payment, e.getMessage(), "UNKNOWN_ERROR");
+
             throw new CustomException(PaymentErrorCode.PAYMENT_APPROVAL_FAILED);
         }
     }
@@ -318,4 +329,57 @@ public class PaymentNiceService {
     private String getNicePayApiUrl() {
         return isSandbox ? sandboxUrl : apiUrl;
     }
+
+    /**
+     * 결제 실패 처리
+     * - Payment 상태를 FAILED로 업데이트
+     * - Kafka에 결제 실패 이벤트 발행
+     *
+     * @param payment Payment 엔티티
+     * @param failureReason 실패 사유
+     * @param errorCode 에러 코드
+     */
+    private void handlePaymentFailure(Payment payment, String failureReason, String errorCode) {
+        try {
+            log.info("[Nice Pay] 결제 실패 처리: paymentId={}, reason={}",
+                    payment.getPaymentId(), failureReason);
+
+            // 1. Payment 상태 업데이트 (FAILED)
+            // TODO: Payment 엔티티에 fail() 메서드가 있으면 사용
+            // payment.fail(failureReason);
+            // 또는 직접 상태 변경
+            payment.updateStatus(
+                    org.ezmeal.payment.domain.model.enums.PaymentStatus.FAILED,
+                    null
+            );
+
+            Payment savedPayment = paymentRepository.save(payment);
+            log.info("[Nice Pay] Payment 상태 업데이트 완료: paymentId={}, status={}",
+                    savedPayment.getPaymentId(), savedPayment.getStatus());
+
+            // 2. Kafka 이벤트 발행
+            org.ezmeal.payment.domain.event.payload.PaymentFailedEvent failedEvent =
+                    org.ezmeal.payment.domain.event.payload.PaymentFailedEvent.of(
+                            savedPayment.getPaymentId(),
+                            savedPayment.getOrderId(),
+                            savedPayment.getUserId(),
+                            savedPayment.getTotalPrice(),
+                            failureReason,
+                            errorCode
+                    );
+
+            paymentEventProducer.publishFailedEvent(failedEvent);
+            log.info("[Nice Pay] 결제 실패 이벤트 발행 완료: paymentId={}",
+                    savedPayment.getPaymentId());
+
+        } catch (Exception e) {
+            log.error("[Nice Pay] 결제 실패 처리 중 에러: paymentId={}",
+                    payment.getPaymentId(), e);
+            // 실패 처리 실패는 로그만 남기고 계속 진행
+        }
+    }
+
+
+
+
 }

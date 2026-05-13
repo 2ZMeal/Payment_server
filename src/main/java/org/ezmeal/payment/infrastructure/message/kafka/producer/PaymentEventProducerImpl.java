@@ -43,7 +43,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
 
         try {
             eventPublisher.publish(
-                    "payment-completed-event-topic",      // Topic name
+                    "payment.completed",      // Topic name
                     event.getPaymentId().toString(),      // aggregateId (순서 보장용)
                     "PAYMENT_COMPLETED",                  // eventType
                     event                                 // payload (EventEnvelope로 자동 감싸짐)
@@ -64,7 +64,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
 
         try {
             eventPublisher.publish(
-                    "payment-cancelled-event-topic",      // Topic name
+                    "payment.cancelled",      // Topic name
                     event.getPaymentId().toString(),      // aggregateId (순서 보장용)
                     "PAYMENT_CANCELLED",                  // eventType
                     event                                 // payload (EventEnvelope로 자동 감싸짐)
@@ -85,7 +85,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
 
         try {
             eventPublisher.publish(
-                    "payment-failed-event-topic",
+                    "payment.failed",
                     event.getPaymentId().toString(),
                     "PAYMENT_FAILED",
                     event

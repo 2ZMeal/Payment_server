@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
 import org.ezmeal.payment.domain.event.payload.PaymentCompletedEvent;
+import org.ezmeal.payment.domain.event.payload.PaymentFailedEvent;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -55,8 +56,8 @@ public class PaymentEventListener {
      * - payload: 실제 PaymentCompletedEvent 데이터
      */
     @KafkaListener(
-            topics = "payment-completed-event-topic",
-            groupId = "payment-service-group"
+            topics = "payment-completed",
+            groupId = "payment-group"
     )
     public void handlePaymentCompletedEvent(String message) {
         try {
@@ -65,7 +66,7 @@ public class PaymentEventListener {
                     new TypeReference<EventEnvelope<PaymentCompletedEvent>>() {}
             );
 
-            log.info("[Kafka Listener] 결제 완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
+            log.info("[Kafka Listener] 결제완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
                     event.eventId(),
                     event.payload().getPaymentId(),
                     event.payload().getOrderId());
@@ -99,8 +100,8 @@ public class PaymentEventListener {
      * payment-cancelled-event-topic
      */
     @KafkaListener(
-            topics = "payment-cancelled-event-topic",
-            groupId = "payment-service-group"
+            topics = "payment.cancelled",
+            groupId = "payment-group"
     )
     public void handlePaymentCancelledEvent(String message) {
         try {
@@ -133,4 +134,51 @@ public class PaymentEventListener {
             throw new RuntimeException("결제 취소 이벤트 처리 실패", e);
         }
     }
+    /**
+     * [구독 Topic]
+     * payment-failed-event-topic
+     */
+    @KafkaListener(
+            topics = "payment.failed",
+            groupId = "payment-group"
+    )
+    public void handlePaymentFailedEvent(String message) {
+        try {
+            EventEnvelope<PaymentFailedEvent> event = objectMapper.readValue(
+                    message,
+                    new TypeReference<EventEnvelope<PaymentFailedEvent>>() {}
+            );
+
+            log.info("[Kafka Listener] 결제 실패 이벤트 수신: eventId={}, paymentId={}, orderId={}, reason={}",
+                    event.eventId(),
+                    event.payload().getPaymentId(),
+                    event.payload().getOrderId(),
+                    event.payload().getFailureReason());
+
+            inboxProcessor.processOnce(event.eventId(), () -> {
+                PaymentFailedEvent payload = event.payload();
+                log.info("[비즈니스 로직] 결제 실패 처리: orderId={}, reason={}, errorCode={}, userId={}",
+                        payload.getOrderId(),
+                        payload.getFailureReason(),
+                        payload.getErrorCode(),
+                        payload.getUserId());
+
+                // TODO: Order Service 호출하여 주문 상태 업데이트
+                // orderService.failPayment(
+                //     orderId = payload.getOrderId(),
+                //     paymentId = payload.getPaymentId(),
+                //     failureReason = payload.getFailureReason()
+                // );
+            });
+        } catch (Exception e) {
+            log.error("[Kafka Listener] 결제 실패 이벤트 처리 실패", e);
+            throw new RuntimeException("결제 실패 이벤트 처리 실패", e);
+        }
+    }
+
+
+
+
+
+
 }
