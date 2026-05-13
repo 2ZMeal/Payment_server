@@ -36,7 +36,7 @@ public class PaymentEventProducerImpl implements PaymentEventProducer {
     private final CommonKafkaEventPublisher eventPublisher;
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishCompletedEvent(PaymentCompletedEvent event) {
         log.info("[Kafka] 결제 완료 이벤트 발행: paymentId={}, orderId={}", 
                 event.getPaymentId(), event.getOrderId());

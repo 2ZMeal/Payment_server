@@ -17,6 +17,7 @@ import org.ezmeal.payment.domain.model.PaymentLog;
 import org.ezmeal.payment.domain.model.enums.LogType;
 import org.ezmeal.payment.domain.model.enums.PaymentMethod;
 import org.ezmeal.payment.domain.model.enums.PaymentStatus;
+import org.ezmeal.payment.domain.model.enums.PgProvider;
 import org.ezmeal.payment.domain.repository.PaymentLogRepository;
 import org.ezmeal.payment.domain.repository.PaymentRepository;
 import org.ezmeal.payment.infrastructure.client.TossPaymentClient;
@@ -96,6 +97,17 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
+    public PaymentResponseDto getPaymentByOrderId(UUID orderId) {
+        // orderId로 가장 최근의 결제 정보 조회
+        Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(orderId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+        // DTO로 변환하여 반환
+        return PaymentResponseDto.from(payment);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PaymentResponseDto> getPaymentList(UUID currentUserId, String roles) {
         // 1. 모든 결제 내역 조회 (실제로는 페이징 처리가 필요하지만 일단 리스트로 구현)
         List<Payment> payments = hasRole(roles, "ADMIN")
@@ -162,14 +174,14 @@ public class PaymentServiceImpl implements PaymentService {
 
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
-                    .paymentMethod(payment.getPaymentMethod())
+                    .paymentMethod(resolvePaymentMethod(payment))
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.COMPLETED)
                     .requestData(request.toString())
                     .responseData(cardTransactionId)
                     .build());
 
-            paymentEventProducer.publishCompletedEvent(PaymentCompletedEvent.of(
+            publishCompletedEventSafely(PaymentCompletedEvent.of(
                     payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
                     payment.getPrice(), cardTransactionId
             ));
@@ -204,7 +216,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
-                    .paymentMethod(payment.getPaymentMethod())
+                    .paymentMethod(resolvePaymentMethod(payment))
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.COMPLETED)
                     .requestData(request.toString())
@@ -213,7 +225,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             log.info("[결제 승인 완료] 토스 최종 승인 및 DB 반영 성공 - paymentKey: {}", response.getPaymentKey());
 
-            paymentEventProducer.publishCompletedEvent(PaymentCompletedEvent.of(
+            publishCompletedEventSafely(PaymentCompletedEvent.of(
                     payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
                     payment.getPrice(), response.getPaymentKey()
             ));
@@ -227,7 +239,7 @@ public class PaymentServiceImpl implements PaymentService {
 
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
-                    .paymentMethod(payment.getPaymentMethod())
+                    .paymentMethod(resolvePaymentMethod(payment))
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.FAILED)
                     .requestData(e.getMessage())
@@ -327,6 +339,8 @@ public class PaymentServiceImpl implements PaymentService {
                     .status(PaymentStatus.READY)
                     .price(totalAmount)
                     .totalPrice(totalAmount)
+                    .pgProvider(PgProvider.TOSS)
+                    .paymentMethod(PaymentMethod.TOSS)
                     .build();
 
             Payment savedPayment = paymentRepository.save(payment);
@@ -387,6 +401,19 @@ public class PaymentServiceImpl implements PaymentService {
         } catch (Exception e) {
             log.error("[Payment] 주문 기반 결제 취소 중 예상치 못한 에러: orderId={}", orderId, e);
             throw new RuntimeException("결제 취소 실패", e);
+        }
+    }
+
+    private PaymentMethod resolvePaymentMethod(Payment payment) {
+        return payment.getPaymentMethod() != null ? payment.getPaymentMethod() : PaymentMethod.TOSS;
+    }
+
+    private void publishCompletedEventSafely(PaymentCompletedEvent event) {
+        try {
+            paymentEventProducer.publishCompletedEvent(event);
+        } catch (Exception e) {
+            log.error("[Payment] 결제는 완료됐지만 완료 이벤트 발행에 실패했습니다. paymentId={}, orderId={}",
+                    event.getPaymentId(), event.getOrderId(), e);
         }
     }
 

@@ -14,8 +14,11 @@ public interface PaymentService {
     // 2. 결제 승인 처리 (PG사 인증 완료 후 호출)
     PaymentResponseDto approvePayment(TossConfirmRequest request, UUID currentUserId);
 
-    //  3. 결제 단건 조회
+    //  3. 결제 단건 조회 (paymentId로)
     PaymentResponseDto getPaymentDetail(UUID paymentId);
+
+    //  3-1. 결제 조회 (orderId로)
+    PaymentResponseDto getPaymentByOrderId(UUID orderId);
 
     //  4. 결제 목록 조회
     List<PaymentResponseDto> getPaymentList(UUID currentUserId, String roles);
