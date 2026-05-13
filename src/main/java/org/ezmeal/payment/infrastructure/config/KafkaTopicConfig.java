@@ -19,7 +19,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic paymentCompletedEventTopic() {
-        return TopicBuilder.name("payment-completed-event-topic")
+        return TopicBuilder.name("payment.completed")
                 .partitions(1)          // 단일 파티션 (순서 보장)
                 .replicas(1)            // 로컬 개발용 (운영: 3 이상 권장)
                 .build();
@@ -27,7 +27,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic paymentCancelledEventTopic() {
-        return TopicBuilder.name("payment-cancelled-event-topic")
+        return TopicBuilder.name("payment.cancelled")
                 .partitions(1)
                 .replicas(1)
                 .build();
@@ -35,7 +35,7 @@ public class KafkaTopicConfig {
 
     @Bean
     public NewTopic paymentFailedTopic() {
-        return TopicBuilder.name("payment-failed-event-topic")
+        return TopicBuilder.name("payment.failed")
                 .partitions(1)
                 .replicas(1)
                 .build();
