@@ -2,9 +2,6 @@ package org.ezmeal.payment.presentation.controller;
 
 import com.ezmeal.common.exception.CustomException;
 import com.ezmeal.common.response.CommonApiResponse;
-import com.ezmeal.common.security.principal.CustomUserPrincipal;
-import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.application.dto.request.NicePayConfirmRequest;
@@ -15,16 +12,10 @@ import org.ezmeal.payment.application.dto.response.PaymentResponseDto;
 import org.ezmeal.payment.application.service.PaymentNiceService;
 import org.ezmeal.payment.application.service.PaymentService;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -49,6 +40,8 @@ public class PaymentController {
         return CommonApiResponse.success("결제 요청이 성공적으로 생성되었습니다.", response);
     }
 
+
+
     @PostMapping("/confirm")
     public CommonApiResponse<PaymentResponseDto> confirmPayment(
             @RequestBody TossConfirmRequest requestDto,
@@ -59,7 +52,39 @@ public class PaymentController {
 
         return CommonApiResponse.success("결제 승인 성공", response);
     }
+    /**
+     * Toss Pay 결제 승인
+     */
+    @PostMapping("/confirm/toss")
+    public CommonApiResponse<PaymentResponseDto> confirmTossPayment(
+            @RequestBody TossConfirmRequest requestDto,
+            @RequestHeader(value = "X-User-Id") String userIdHeader
+    ) {
+        UUID currentUserId = parseUserId(userIdHeader);
+        PaymentResponseDto response = paymentService.approvePayment(requestDto, currentUserId);
 
+        return CommonApiResponse.success("Toss Pay 결제 승인 성공", response);
+    }
+
+    /**
+     * Nice Pay 결제 승인
+     */
+    @PostMapping("/confirm/nicepay")
+    public CommonApiResponse<PaymentResponseDto> confirmNicePayment(
+            @RequestBody NicePayConfirmRequest requestDto,
+            @RequestHeader(value = "X-User-Id") String userIdHeader
+    ) {
+        UUID currentUserId = parseUserId(userIdHeader);
+        PaymentResponseDto response = paymentNiceService.approveNicePayment(requestDto, currentUserId);
+
+        return CommonApiResponse.success("Nice Pay 결제 승인 성공", response);
+    }
+
+
+
+
+
+    // 단건 조회
     @GetMapping("/{payment_id}")
     public CommonApiResponse<PaymentResponseDto> getPayment(
             @PathVariable("payment_id") UUID paymentId,
@@ -75,6 +100,8 @@ public class PaymentController {
         return CommonApiResponse.success(response);
     }
 
+
+    // 전체 조회
     @GetMapping
     public CommonApiResponse<List<PaymentResponseDto>> getPayments(
             @RequestHeader(value = "X-User-Id") String userIdHeader,
@@ -86,6 +113,9 @@ public class PaymentController {
         return CommonApiResponse.success(responses);
     }
 
+
+
+    //취소
     @PostMapping("/{payment_id}/cancel")
     public CommonApiResponse<PaymentResponseDto> cancelPayment(
             @PathVariable("payment_id") UUID paymentId,

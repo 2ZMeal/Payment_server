@@ -1,10 +1,6 @@
 package org.ezmeal.payment.application.service;
 
 import com.ezmeal.common.exception.CustomException;
-import java.util.Base64;
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.ezmeal.payment.application.dto.request.PaymentRequestDto;
@@ -14,6 +10,7 @@ import org.ezmeal.payment.application.dto.response.TossConfirmResponse;
 import org.ezmeal.payment.domain.event.PaymentEventProducer;
 import org.ezmeal.payment.domain.event.payload.PaymentCancelledEvent;
 import org.ezmeal.payment.domain.event.payload.PaymentCompletedEvent;
+import org.ezmeal.payment.domain.event.payload.PaymentFailedEvent;
 import org.ezmeal.payment.domain.exception.PaymentErrorCode;
 import org.ezmeal.payment.domain.model.Payment;
 import org.ezmeal.payment.domain.model.PaymentLog;
@@ -27,6 +24,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient.Builder;
+
+import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -80,6 +82,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
 
+
     @Override
     @Transactional(readOnly = true)
     public PaymentResponseDto getPaymentDetail(UUID paymentId) {
@@ -120,26 +123,36 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public PaymentResponseDto approvePayment(TossConfirmRequest request, UUID currentUserId) {
 
-        // 🎯 결제 승인 요청 수신 로그
         log.info("[결제 승인 요청 수신] orderId: {}, paymentKey: {}, amount: {}", request.getOrderId(), request.getPaymentKey(), request.getAmount());
 
         // 1. DB 조회
         Payment payment = paymentRepository.findFirstByOrderIdOrderByCreatedAtDesc(request.getOrderId())
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-        // [검증 1] 중복 승인 방지 (이미 완료/실패된 건인지 확인)
+        // [검증 1] 중복 승인 방지
         if (payment.getStatus() != PaymentStatus.READY) {
+            paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), "이미 처리된 결제입니다.", "ALREADY_PROCESSED"
+            ));
             throw new CustomException(PaymentErrorCode.ALREADY_PROCESSED_PAYMENT);
         }
 
-        // [검증 2] 보안: 결제 요청자와 현재 로그인 유저가 일치하는지 확인
+        // [검증 2] 결제 요청자 확인
         if (!payment.getUserId().equals(currentUserId)) {
+            paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), "결제 요청자가 일치하지 않습니다.", "ACCESS_DENIED"
+            ));
             throw new CustomException(PaymentErrorCode.ACCESS_DENIED);
         }
 
-        // [검증 3] 금액 검증 (DB 저장 금액 vs 클라이언트 요청 금액)
-        //  여기서 요청 금액(request.getAmount())이 DB랑 다르면 바로 컷
+        // [검증 3] 금액 검증
         if (!payment.getPrice().equals(request.getAmount())) {
+            paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), "요청 금액이 일치하지 않습니다.", "INVALID_AMOUNT"
+            ));
             throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
         }
 
@@ -156,75 +169,75 @@ public class PaymentServiceImpl implements PaymentService {
                     .responseData(cardTransactionId)
                     .build());
 
-
-
+            paymentEventProducer.publishCompletedEvent(PaymentCompletedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), cardTransactionId
+            ));
 
             return PaymentResponseDto.from(payment);
         }
 
         try {
-            // 2. 토스 API 인증 헤더 생성
             String auth = Base64.getEncoder().encodeToString((secretKey + ":").getBytes());
-
-            // 3. PG사 승인 요청
             TossConfirmResponse response = tossPaymentClient.confirmPayment("Basic " + auth, request);
 
-            // [검증 4] paymentKey 대조 (토스 응답 키 vs 요청 키)
-            // 🚩 요청한 키와 응답받은 키가 다르면 데이터 변조로 간주합니다.
+            // [검증 4] paymentKey 대조
             if (!response.getPaymentKey().equals(request.getPaymentKey())) {
+                paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                        payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                        payment.getPrice(), "결제 키가 일치하지 않습니다.", "INVALID_PAYMENT_KEY"
+                ));
                 throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_KEY);
             }
 
-            // [검증 5] 최종 금액 대조 (토스 응답 실제 결제 금액 vs DB 저장 금액)
-            // 🚩 실제 돈이 얼마 나갔는지 토스가 알려준 값(totalAmount)까지 확인해야 끝입니다.
+            // [검증 5] 최종 금액 대조
             if (response.getTotalAmount() == null
                     || payment.getPrice().longValue() != response.getTotalAmount()) {
+                paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                        payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                        payment.getPrice(), "최종 결제 금액이 일치하지 않습니다.", "INVALID_AMOUNT"
+                ));
                 throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_AMOUNT);
             }
 
-            // 4. 모든 검증 통과 시 상태 업데이트 (paymentKey 저장)
             payment.updateStatus(PaymentStatus.COMPLETED, response.getPaymentKey());
 
-            // 성공 로그 기록
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
-                    // 추가됨 (05.03 새벽)
                     .paymentMethod(payment.getPaymentMethod())
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.COMPLETED)
                     .requestData(request.toString())
                     .responseData(response.toString())
                     .build());
-            // 🎯 최종 성공 로그
+
             log.info("[결제 승인 완료] 토스 최종 승인 및 DB 반영 성공 - paymentKey: {}", response.getPaymentKey());
 
-            PaymentCompletedEvent event = PaymentCompletedEvent.of(
-                    payment.getPaymentId(),      // ✅ 실제 객체에서 가져옴
-                    payment.getOrderId(),
-                    payment.getUserId(),
-                    payment.getPrice(),
-                    response.getPaymentKey()
-            );
-
-            paymentEventProducer.publishCompletedEvent(event);
-
+            paymentEventProducer.publishCompletedEvent(PaymentCompletedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), response.getPaymentKey()
+            ));
 
             return PaymentResponseDto.from(payment);
 
         } catch (CustomException e) {
             throw e;
         } catch (Exception e) {
-            // 5. 실패 시 처리
             payment.updateStatus(PaymentStatus.FAILED, request.getPaymentKey());
 
             paymentLogRepository.save(PaymentLog.builder()
                     .payment(payment)
-                    // 추가됨 05.03 새벽
                     .paymentMethod(payment.getPaymentMethod())
                     .logType(LogType.APPROVE)
                     .status(PaymentStatus.FAILED)
                     .requestData(e.getMessage())
                     .build());
+
+            // ✅ 추가!
+            paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
+                    payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
+                    payment.getPrice(), e.getMessage(), "PAYMENT_GATEWAY_ERROR"
+            ));
 
             throw new CustomException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
         }
@@ -284,6 +297,97 @@ public class PaymentServiceImpl implements PaymentService {
         paymentRepository.save(payment);
 
         log.info("결제 완료: paymentId={}, userId={}", paymentId, currentUserId);
+    }
+    /**
+     * Order Service의 주문 생성 이벤트에서 호출
+     * - Payment 엔티티 생성
+     * - status: READY
+     *
+     * @param orderId 주문 ID
+     * @param userId 사용자 ID
+     * @param totalAmount 총 결제 금액
+     */
+    @Override
+    @Transactional
+    public void createPaymentFromOrder(UUID orderId, UUID userId, Integer totalAmount) {
+        log.info("[Payment] 주문 기반 결제 생성: orderId={}, userId={}, amount={}",
+                orderId, userId, totalAmount);
+
+        try {
+            // 기존 Payment 있는지 확인
+            if (paymentRepository.findByOrderId(orderId).isPresent()) {
+                log.warn("[Payment] 이미 존재하는 Payment: orderId={}", orderId);
+                return;
+            }
+
+            // Payment 엔티티 생성
+            Payment payment = Payment.builder()
+                    .orderId(orderId)
+                    .userId(userId)
+                    .status(PaymentStatus.READY)
+                    .price(totalAmount)
+                    .totalPrice(totalAmount)
+                    .build();
+
+            Payment savedPayment = paymentRepository.save(payment);
+            log.info("[Payment] 결제 생성 완료: paymentId={}, orderId={}",
+                    savedPayment.getPaymentId(), orderId);
+
+        } catch (Exception e) {
+            log.error("[Payment] 주문 기반 결제 생성 실패: orderId={}", orderId, e);
+            throw new RuntimeException("결제 생성 실패", e);
+        }
+    }
+
+    /**
+     * Order Service의 주문 취소 이벤트에서 호출
+     * - Payment 상태 변경: CANCELLED
+     *
+     * @param orderId 주문 ID
+     * @param reason 취소 사유
+     */
+    @Override
+    @Transactional
+    public void cancelPaymentFromOrder(UUID orderId, String reason) {
+        log.info("[Payment] 주문 기반 결제 취소: orderId={}, reason={}", orderId, reason);
+
+        try {
+            Payment payment = paymentRepository.findByOrderId(orderId)
+                    .orElseThrow(() -> {
+                        log.warn("[Payment] Payment를 찾을 수 없음: orderId={}", orderId);
+                        return new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND);
+                    });
+
+            // 이미 취소된 경우
+            if (payment.getStatus() == PaymentStatus.CANCELLED) {
+                log.warn("[Payment] 이미 취소된 Payment: orderId={}", orderId);
+                return;
+            }
+
+            // Payment 취소
+            payment.cancel(reason);
+            Payment savedPayment = paymentRepository.save(payment);
+
+            // ✅ 이벤트 발행 추가!
+            PaymentCancelledEvent event = PaymentCancelledEvent.of(
+                    savedPayment.getPaymentId(),
+                    savedPayment.getOrderId(),
+                    savedPayment.getUserId(),
+                    savedPayment.getPrice(),
+                    reason
+            );
+            paymentEventProducer.publishCancelledEvent(event);
+
+            log.info("[Payment] 결제 취소 완료: paymentId={}, orderId={}, status={}",
+                    savedPayment.getPaymentId(), orderId, savedPayment.getStatus());
+
+        } catch (CustomException e) {
+            log.error("[Payment] 주문 기반 결제 취소 실패: orderId={}, message={}", orderId, e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("[Payment] 주문 기반 결제 취소 중 예상치 못한 에러: orderId={}", orderId, e);
+            throw new RuntimeException("결제 취소 실패", e);
+        }
     }
 
 

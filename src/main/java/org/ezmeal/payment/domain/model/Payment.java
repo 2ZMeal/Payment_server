@@ -1,14 +1,17 @@
 package org.ezmeal.payment.domain.model;
 
-import com.ezmeal.common.entity.BaseEntity; // 공통 모듈 참조
+import com.ezmeal.common.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.*;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.ezmeal.payment.domain.model.enums.PaymentMethod;
 import org.ezmeal.payment.domain.model.enums.PaymentStatus;
 import org.ezmeal.payment.domain.model.enums.PgProvider;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "p_payment")
@@ -45,11 +48,11 @@ public class Payment extends BaseEntity {
     private String pgTransactionId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "pg_provider", nullable = false)
+    @Column(name = "pg_provider", nullable = true)
     private PgProvider pgProvider;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", nullable = false)
+    @Column(name = "payment_method", nullable = true)
     private PaymentMethod paymentMethod;
 
     @Column(name = "paid_at")
@@ -67,8 +70,8 @@ public class Payment extends BaseEntity {
     public Payment(UUID orderId, UUID userId, PaymentStatus status, Integer price,
                    Integer totalPrice, PgProvider pgProvider, PaymentMethod paymentMethod) {
 
-        // 여기에 검증 로직 추가!
-        validatePgAndMethod(pgProvider, paymentMethod);
+//        // 여기에 검증 로직 추가!
+//        validatePgAndMethod(pgProvider, paymentMethod);
 
         this.orderId = orderId;
         this.userId = userId;
@@ -80,16 +83,16 @@ public class Payment extends BaseEntity {
     }
 
 
-    /**
-     * PG사와 결제 수단 조합 검증
-     */
-    private void validatePgAndMethod(PgProvider provider, PaymentMethod method) {
-        if (method.getValidProvider() != provider) {
-            throw new IllegalArgumentException(
-                    String.format("%s 대행사에서 %s 수단을 사용할 수 없습니다.", provider, method)
-            );
-        }
-    }
+//    /**
+//     * PG사와 결제 수단 조합 검증
+//     */
+//    private void validatePgAndMethod(PgProvider provider, PaymentMethod method) {
+//        if (method.getValidProvider() != provider) {
+//            throw new IllegalArgumentException(
+//                    String.format("%s 대행사에서 %s 수단을 사용할 수 없습니다.", provider, method)
+//            );
+//        }
+//    }
 
     // 결제 완료 비즈니스 로직
     public void complete(String pgTransactionId) {
