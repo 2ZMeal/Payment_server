@@ -5,7 +5,6 @@ import lombok.*;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Getter
@@ -18,8 +17,6 @@ public class PaymentFailedEvent implements DomainEvent, Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private UUID eventId;
-    private OffsetDateTime occurredAt;
     private UUID paymentId;
     private UUID orderId;
     private UUID userId;
@@ -31,7 +28,6 @@ public class PaymentFailedEvent implements DomainEvent, Serializable {
     public static PaymentFailedEvent of(
 
 
-
             UUID paymentId,
             UUID orderId,
             UUID userId,
@@ -41,8 +37,7 @@ public class PaymentFailedEvent implements DomainEvent, Serializable {
 
     ) {
         return  PaymentFailedEvent.builder()
-                .eventId(UUID.randomUUID())
-                .occurredAt(OffsetDateTime.now())
+
                 .paymentId(paymentId)
                 .orderId(orderId)
                 .userId(userId)

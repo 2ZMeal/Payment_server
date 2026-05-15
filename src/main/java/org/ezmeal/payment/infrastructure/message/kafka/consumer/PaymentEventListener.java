@@ -59,12 +59,8 @@ public class PaymentEventListener {
             topics = "payment.completed",
             groupId = "payment-group"
     )
-    public void handlePaymentCompletedEvent(String message) {
+    public void handlePaymentCompletedEvent(EventEnvelope<PaymentCompletedEvent> event) {
         try {
-            EventEnvelope<PaymentCompletedEvent> event = objectMapper.readValue(
-                    message,
-                    new TypeReference<EventEnvelope<PaymentCompletedEvent>>() {}
-            );
 
             log.info("[Kafka Listener] 결제완료 이벤트 수신: eventId={}, paymentId={}, orderId={}",
                     event.eventId(),
