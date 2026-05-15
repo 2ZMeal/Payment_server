@@ -43,7 +43,7 @@ public class PgController {
     private final PaymentNiceService paymentNiceService;   // Nice Pay
 
     /**
-     * Toss Payments 결제 승인
+     * Toss Payments 결제 승인 !
      *
      * 프론트에서 Toss 결제창 인증 후 호출
      * - 서명 검증
@@ -80,10 +80,11 @@ public class PgController {
             return CommonApiResponse.success("Toss 결제 승인 성공", response);
 
         } catch (CustomException e) {
-            log.error("[Toss] 결제 승인 실패 - {}", e.getMessage());
+            log.error("[Toss] 결제 승인 실패 ! - {}", e.getMessage());
             throw e;
+
         } catch (Exception e) {
-            log.error("[Toss] 예상치 못한 에러", e);
+            log.error("[Toss] 예상치 못한 에러 !", e);
             throw new CustomException(PaymentErrorCode.PAYMENT_APPROVAL_FAILED);
         }
     }
@@ -133,10 +134,10 @@ public class PgController {
             return CommonApiResponse.success("Nice Pay 결제 승인 성공", response);
 
         } catch (CustomException e) {
-            log.error("[NicePay] 결제 승인 실패 - {}", e.getMessage());
+            log.error("[NicePay] 결제 승인 실패!- {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("[NicePay] 예상치 못한 에러", e);
+            log.error("[NicePay] 예상치 못한 에러 !", e);
             throw new CustomException(PaymentErrorCode.PAYMENT_APPROVAL_FAILED);
         }
     }

@@ -1,15 +1,11 @@
 package org.ezmeal.payment.domain.event.payload;
 
 import com.ezmeal.common.message.DomainEvent;
+import lombok.*;
+
 import java.io.Serial;
 import java.io.Serializable;
-import java.time.OffsetDateTime;
 import java.util.UUID;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -19,8 +15,7 @@ public class PaymentCancelledEvent implements DomainEvent, Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private UUID eventId;
-    private OffsetDateTime occurredAt;
+
     private UUID paymentId;
     private UUID orderId;
     private UUID userId;
@@ -37,8 +32,8 @@ public class PaymentCancelledEvent implements DomainEvent, Serializable {
 
     ) {
         return PaymentCancelledEvent.builder()
-                .eventId(UUID.randomUUID())
-                .occurredAt(OffsetDateTime.now())
+
+
                 .paymentId(paymentId)
                 .orderId(orderId)
                 .userId(userId)
