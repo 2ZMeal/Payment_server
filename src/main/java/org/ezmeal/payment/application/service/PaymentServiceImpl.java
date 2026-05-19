@@ -197,7 +197,7 @@ public class PaymentServiceImpl implements PaymentService {
             if (!response.getPaymentKey().equals(request.getPaymentKey())) {
                 paymentEventProducer.publishFailedEvent(PaymentFailedEvent.of(
                         payment.getPaymentId(), payment.getOrderId(), payment.getUserId(),
-                        payment.getPrice(), "결제 키가 일치하지 않습니다.", "INVALID_PAYMENT_KEY"
+                        payment.getPrice(), "결제 키가 일치하지 않습니다!!.", "INVALID_PAYMENT_KEY"
                 ));
                 throw new CustomException(PaymentErrorCode.INVALID_PAYMENT_KEY);
             }
