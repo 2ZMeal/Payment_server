@@ -1,0 +1,20 @@
+spring:
+  cloud:
+    config:
+      enabled: false
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payment_db
+    username: payment_user
+    password: 1234
+    driver-class-name: org.postgresql.Driver
+
+
+eureka:
+  client:
+    enabled: false
+
+payment:
+  toss:
+    url: https://api.tosspayments.com/v1/payments
+    secret-key: test_secret_key

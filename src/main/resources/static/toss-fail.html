@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZMEAL Toss Fail</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      color: #191f28;
+      background: #f5f7fb;
+    }
+
+    main {
+      width: min(680px, calc(100% - 32px));
+      margin: 32px auto;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 20px;
+    }
+
+    h1 {
+      margin: 0 0 16px;
+      font-size: 26px;
+    }
+
+    pre {
+      overflow: auto;
+      min-height: 80px;
+      border-radius: 8px;
+      padding: 14px;
+      background: #f2f4f8;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      border-radius: 6px;
+      padding: 0 14px;
+      color: #191f28;
+      background: #e9eef7;
+      text-decoration: none;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>결제 인증 실패</h1>
+  <pre id="result"></pre>
+  <a href="/toss-test.html">다시 시도</a>
+</main>
+<script>
+  const params = Object.fromEntries(new URLSearchParams(location.search).entries());
+  document.getElementById("result").textContent = JSON.stringify(params, null, 2);
+</script>
+</body>
+</html>

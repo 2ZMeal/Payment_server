@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EZMEAL Toss Test</title>
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      color: #191f28;
+      background: #f5f7fb;
+    }
+
+    main {
+      width: min(960px, calc(100% - 32px));
+      margin: 32px auto;
+    }
+
+    h1 {
+      margin: 0 0 20px;
+      font-size: 28px;
+      line-height: 1.25;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      margin-bottom: 14px;
+      color: #4e5968;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid #cfd6e4;
+      border-radius: 6px;
+      padding: 9px 11px;
+      color: #191f28;
+      font: inherit;
+      background: #fff;
+    }
+
+    button {
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      padding: 0 14px;
+      color: #fff;
+      background: #0064ff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      color: #191f28;
+      background: #e9eef7;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .pay-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 14px;
+      color: #4e5968;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    #payment-method,
+    #agreement {
+      min-height: 80px;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100% - 20px, 560px);
+        margin: 20px auto;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>EZMEAL Toss Test</h1>
+  <div class="layout">
+    <section class="panel">
+      <label>
+        Toss client key
+        <input id="clientKey" autocomplete="off" placeholder="test_gck_...">
+      </label>
+      <label>
+        User ID
+        <input id="userId" autocomplete="off">
+      </label>
+      <label>
+        Amount
+        <input id="amount" type="number" min="100" step="100" value="1000">
+      </label>
+      <label>
+        Order name
+        <input id="orderName" value="EZMEAL 테스트 결제">
+      </label>
+      <label>
+        Customer name
+        <input id="customerName" value="테스트유저">
+      </label>
+      <div class="actions">
+        <button class="secondary" type="button" id="newUserButton">새 User ID</button>
+        <button type="button" id="prepareButton">결제 준비</button>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="panel">
+      <div id="payment-method"></div>
+      <div id="agreement"></div>
+      <div class="pay-actions">
+        <button type="button" id="payButton" disabled>결제 요청</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const state = {
+    widgets: null,
+    orderId: null,
+    amount: null,
+    userId: null,
+    orderName: null,
+    customerName: null
+  };
+
+  function setStatus(message) {
+    $("status").textContent = message;
+  }
+
+  function uuid() {
+    return crypto.randomUUID();
+  }
+
+  function loadSavedValues() {
+    $("clientKey").value = localStorage.getItem("tossClientKey") || "";
+    $("userId").value = localStorage.getItem("ezmealUserId") || uuid();
+  }
+
+  function saveValues() {
+    localStorage.setItem("tossClientKey", $("clientKey").value.trim());
+    localStorage.setItem("ezmealUserId", $("userId").value.trim());
+  }
+
+  function validateInputs() {
+    const clientKey = $("clientKey").value.trim();
+    const userId = $("userId").value.trim();
+    const amount = Number($("amount").value);
+
+    if (!clientKey) {
+      throw new Error("Toss client key를 입력하세요.");
+    }
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) {
+      throw new Error("User ID는 UUID 형식이어야 합니다.");
+    }
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new Error("Amount는 양의 정수여야 합니다.");
+    }
+
+    return {
+      clientKey,
+      userId,
+      amount,
+      orderName: $("orderName").value.trim() || "EZMEAL 테스트 결제",
+      customerName: $("customerName").value.trim() || "테스트유저"
+    };
+  }
+
+  async function createPayment({ userId, amount }) {
+    const orderId = uuid();
+    const response = await fetch("/api/v1/payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": userId
+      },
+      body: JSON.stringify({
+        orderId,
+        price: amount,
+        totalPrice: amount,
+        pgProvider: "TOSS",
+        paymentMethod: "TOSS"
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    return orderId;
+  }
+
+  async function preparePayment() {
+    $("prepareButton").disabled = true;
+    $("payButton").disabled = true;
+    setStatus("결제 데이터를 생성하는 중입니다.");
+
+    try {
+      const input = validateInputs();
+      saveValues();
+
+      const orderId = await createPayment(input);
+      const tossPayments = TossPayments(input.clientKey);
+      const widgets = tossPayments.widgets({ customerKey: input.userId });
+
+      await widgets.setAmount({
+        currency: "KRW",
+        value: input.amount
+      });
+      await widgets.renderPaymentMethods({
+        selector: "#payment-method",
+        variantKey: "DEFAULT"
+      });
+      await widgets.renderAgreement({
+        selector: "#agreement",
+        variantKey: "AGREEMENT"
+      });
+
+      Object.assign(state, {
+        widgets,
+        orderId,
+        amount: input.amount,
+        userId: input.userId,
+        orderName: input.orderName,
+        customerName: input.customerName
+      });
+
+      $("payButton").disabled = false;
+      setStatus(`READY 생성 완료\norderId: ${orderId}`);
+    } catch (error) {
+      setStatus(error.message || String(error));
+    } finally {
+      $("prepareButton").disabled = false;
+    }
+  }
+
+  async function requestPayment() {
+    if (!state.widgets || !state.orderId) {
+      setStatus("먼저 결제 준비를 실행하세요.");
+      return;
+    }
+
+    $("payButton").disabled = true;
+    setStatus("토스 결제창을 여는 중입니다.");
+
+    try {
+      const userQuery = encodeURIComponent(state.userId);
+      await state.widgets.requestPayment({
+        orderId: state.orderId,
+        orderName: state.orderName,
+        successUrl: `${location.origin}/toss-success.html?userId=${userQuery}`,
+        failUrl: `${location.origin}/toss-fail.html`,
+        customerName: state.customerName
+      });
+    } catch (error) {
+      $("payButton").disabled = false;
+      setStatus(error.message || String(error));
+    }
+  }
+
+  $("newUserButton").addEventListener("click", () => {
+    $("userId").value = uuid();
+    saveValues();
+  });
+  $("prepareButton").addEventListener("click", preparePayment);
+  $("payButton").addEventListener("click", requestPayment);
+
+  loadSavedValues();
+</script>
+</body>
+</html>

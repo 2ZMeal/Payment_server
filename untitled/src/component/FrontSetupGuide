@@ -1,0 +1,77 @@
+/**
+ * App.tsx 또는 Router 설정 파일
+ *
+ * Nice Pay 관련 라우트 추가
+ */
+
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import CheckoutPage from './pages/CheckoutPage_Complete';
+import NicePayCallback from './pages/NicePayCallback_Complete';
+// import 다른 페이지들...
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        {/* 기존 라우트들 */}
+        {/* <Route path="/" element={<HomePage />} /> */}
+        {/* <Route path="/order" element={<OrderPage />} /> */}
+
+        {/* ✨ Nice Pay 라우트 추가 */}
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/nicepay/callback" element={<NicePayCallback />} />
+        <Route path="/order/success" element={<SuccessPage />} />
+
+        {/* 404 페이지 */}
+        {/* <Route path="*" element={<NotFoundPage />} /> */}
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+
+/**
+ * .env 파일에 추가
+ */
+/*
+REACT_APP_API_BASE_URL=http://localhost:19086
+REACT_APP_NICEPAY_CLIENT_ID=test_client_123
+REACT_APP_NICEPAY_SECRET_KEY=test_secret_key
+*/
+
+
+/**
+ * public/index.html에 Nice Pay SDK 추가
+ */
+/*
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>EZMEAL 결제</title>
+
+    ✨ Nice Pay SDK 로드
+    <script src="https://pay.nicepay.co.kr/v1/js/"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+*/
+
+
+/**
+ * package.json에 필요한 라이브러리 추가
+ */
+/*
+npm install crypto-js
+npm install -D @types/crypto-js
+
+또는
+
+yarn add crypto-js
+yarn add -D @types/crypto-js
+*/

@@ -1,0 +1,6 @@
+{
+  "name": "Toss Payments Integration",
+  "description": "A full-stack implementation of the Toss Payments widget flow, including checkout, success, and failure handling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
