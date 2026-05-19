@@ -59,7 +59,7 @@ public class Payment extends BaseEntity {
     private LocalDateTime paidAt;
 
 
-    @Column(name = "cancellation_reason", length = 500)
+    @Column(name = "cancellation_reason!", length = 500)
     private String cancellationReason;
 
     @Column(name = "cancelled_at")
